@@ -60,6 +60,11 @@ runs on the dirty CPU schedulers. One Ecto pool of `DB_POOL_SIZE` connections, 1
 ## Settings beyond the defaults
 
 - Bandit's `read_timeout` is 75 s, so idle keep-alive connections outlive Nginx's 60 s upstream keep-alive.
+- Bandit's response compression is off (`http_options: [compress: false]`). Nginx already gzips JSON over 1 KB at
+  level 1, and Nginx passes `Accept-Encoding` upstream, so with compression on Bandit gzips each response first, at
+  a higher level and a higher CPU cost. In a local test on a 4-core VM (the app, Postgres and the load generator
+  shared the cores; dev seed, think time scaled to 0.2, two interleaved runs each, 1,700 users) turning it off gave
+  1,816 → 2,026 req/s, p95 317 → 193 ms, p99 424 → 268 ms and errors 1.14% → 0%, with 15% less app CPU per request.
 - `limit` and `offset` must be plain digits (`Conduit.Types.PlainInteger`); Ecto's `:integer` would also take `+5`.
 - Logger level `:warning` in prod.
 

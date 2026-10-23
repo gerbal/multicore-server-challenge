@@ -16,6 +16,9 @@ if config_env() == :prod do
     http: [
       ip: ip,
       port: String.to_integer(System.get_env("PORT", "3000")),
+      # Nginx gzips JSON responses (level 1, over 1 KB). Left on, Bandit would compress first, at a higher level and
+      # a higher CPU cost, and Nginx would pass the result through.
+      http_options: [compress: false],
       # Keep idle keep-alive connections for 75 s, longer than Nginx's 60 s upstream keep-alive.
       thousand_island_options: [read_timeout: 75_000]
     ]
