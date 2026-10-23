@@ -35,4 +35,4 @@ for b in erl erlc escript epmd run_erl to_erl; do ln -sf "/usr/local/otp/bin/$b"
 for b in elixir elixirc iex mix; do ln -sf "/usr/local/elixir/bin/$b" "/usr/local/bin/$b"; done
 chmod -R a+rX /usr/local/otp /usr/local/elixir
 erl -noshell -eval 'io:format("OTP ~s~n",[erlang:system_info(otp_release)]), halt().'
-elixir --version | tail -1
+LANG=C.UTF-8 elixir --version | tail -1
