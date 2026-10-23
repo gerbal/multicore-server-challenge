@@ -16,10 +16,17 @@ if config_env() == :prod do
     http: [
       ip: ip,
       port: String.to_integer(System.get_env("PORT", "3000")),
-      # Nginx gzips JSON responses (level 1, over 1 KB). Left on, Bandit would compress first, at a higher level and
-      # a higher CPU cost, and Nginx would pass the result through.
+      # Responses go out uncompressed: gzip is optional in SPEC.md and costs CPU on every response, which the box,
+      # shared with Postgres, is shorter of than bandwidth.
       http_options: [compress: false],
-      # Keep idle keep-alive connections for 75 s, longer than Nginx's 60 s upstream keep-alive.
-      thousand_island_options: [read_timeout: 75_000]
+      # Collect each connection's garbage after every request (Bandit's default is every 5th), so a user who is
+      # thinking between pages doesn't hold on to the heap their last request built.
+      http_1_options: [gc_every_n_keepalive_requests: 1],
+      thousand_island_options: [
+        # Clients hold one keep-alive connection each and think for up to 70 s between pages; don't close them first.
+        read_timeout: 75_000,
+        # Every user connects directly, so allow bursts of new connections (the box's somaxconn is 65535).
+        transport_options: [backlog: 8192]
+      ]
     ]
 end

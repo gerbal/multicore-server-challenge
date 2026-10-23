@@ -1,10 +1,12 @@
 # Elixir: Phoenix + Ecto
 
-**Front: nginx**
+**Front: direct**
 
 A baseline written the way a Phoenix team would write it: contexts, Ecto schemas and changesets, composable Ecto
-queries, JSON view modules and an ExUnit suite. There's no performance tuning beyond the pool size. It's a
-reference point for idiomatic Elixir rather than a contender.
+queries, JSON view modules and an ExUnit suite. It's a reference point for idiomatic Elixir rather than a contender:
+the code is untuned, and the few runtime settings below are the ones a production deploy would set.
+
+It serves the internet itself (`0.0.0.0:80`), as most Phoenix deployments do with Bandit, rather than behind Nginx.
 
 | Piece | Version |
 |---|---|
@@ -59,12 +61,19 @@ runs on the dirty CPU schedulers. One Ecto pool of `DB_POOL_SIZE` connections, 1
 
 ## Settings beyond the defaults
 
-- Bandit's `read_timeout` is 75 s, so idle keep-alive connections outlive Nginx's 60 s upstream keep-alive.
-- Bandit's response compression is off (`http_options: [compress: false]`). Nginx already gzips JSON over 1 KB at
-  level 1, and Nginx passes `Accept-Encoding` upstream, so with compression on Bandit gzips each response first, at
-  a higher level and a higher CPU cost. In a local test on a 4-core VM (the app, Postgres and the load generator
-  shared the cores; dev seed, think time scaled to 0.2, two interleaved runs each, 1,700 users) turning it off gave
-  1,816 → 2,026 req/s, p95 317 → 193 ms, p99 424 → 268 ms and errors 1.14% → 0%, with 15% less app CPU per request.
+Serving directly means one keep-alive connection per user, tens of thousands of them, mostly idle:
+
+- `+Q 1000000` in `start.sh`: every TCP socket is a BEAM port, and the default limit of 65,536 would cap the number
+  of users. (The process limit, about a million, and ThousandIsland's default 100 × 16,384 connections are enough.)
+- Bandit's `read_timeout` is 75 s, longer than a user's maximum 70 s think time, so the server never closes an idle
+  user's connection first.
+- The listen backlog is 8,192 (ThousandIsland's default is 1,024; the box allows 65,535), for bursts of new
+  connections.
+- Response compression is off (`http_options: [compress: false]`). Gzip is optional in SPEC.md, and on this box CPU,
+  shared with Postgres, is scarcer than bandwidth. In a local test on a 4-core VM (the app, Postgres and the load
+  generator shared the cores; dev seed, think time scaled to 0.2, two interleaved runs each, 1,700 users) turning it
+  off gave 1,816 → 2,026 req/s, p95 317 → 193 ms, p99 424 → 268 ms and errors 1.14% → 0%, with 15% less app CPU per
+  request.
 - `limit` and `offset` must be plain digits (`Conduit.Types.PlainInteger`); Ecto's `:integer` would also take `+5`.
 - Logger level `:warning` in prod.
 
@@ -88,4 +97,5 @@ TEST_DATABASE_URL=postgres://postgres:postgres@localhost/conduit_test mix test
 each test in a rolled-back sandbox transaction. It needs a role that can create databases, and it hashes at cost 4
 to keep the suite fast.
 
-Environment: `DATABASE_URL`, `JWT_SECRET` (required), `HOST` (127.0.0.1), `PORT` (3000), `DB_POOL_SIZE`.
+Environment: `DATABASE_URL`, `JWT_SECRET` (required), `HOST` (127.0.0.1; `0.0.0.0` on the box), `PORT` (3000; `80` on
+the box), `DB_POOL_SIZE`. Binding port 80 needs `CAP_NET_BIND_SERVICE`, which the box's systemd unit grants.
