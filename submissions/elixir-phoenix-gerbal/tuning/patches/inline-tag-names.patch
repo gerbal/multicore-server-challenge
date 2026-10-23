@@ -1,0 +1,71 @@
+diff -ru a/lib/conduit/blog/article.ex b/lib/conduit/blog/article.ex
+--- a/lib/conduit/blog/article.ex	2026-10-23 22:30:05.000000000 +0000
++++ b/lib/conduit/blog/article.ex	2026-10-23 23:24:14.099949948 +0000
+@@ -17,7 +17,7 @@
+     field :favorites_count, :integer, virtual: true, default: 0
+     field :favorited, :boolean, virtual: true, default: false
+ 
+-    # The tag names given when publishing; `tags` holds the linked Tag rows.
++    # Tag names: given when publishing, and set (sorted) by queries that load articles.
+     field :tag_list, {:array, :string}, virtual: true, default: []
+ 
+     belongs_to :author, User
+diff -ru a/lib/conduit/blog.ex b/lib/conduit/blog.ex
+--- a/lib/conduit/blog.ex	2026-10-23 22:30:05.000000000 +0000
++++ b/lib/conduit/blog.ex	2026-10-23 23:24:14.097858696 +0000
+@@ -130,19 +130,28 @@
+     |> Repo.aggregate(:count)
+   end
+ 
+-  # Articles with their author, tags, favorite count, and the viewer's `favorited` and `following`.
++  # Articles with their author, tag names, favorite count, and the viewer's `favorited` and `following`.
++  #
++  # Tag names are aggregated in the same query rather than preloaded, which would cost a second round trip.
+   defp articles_query(viewer_id) do
+     favorites = from f in Favorite, where: f.article_id == parent_as(:article).id
+     favorited = from f in favorites, where: f.user_id == ^(viewer_id || 0)
+ 
++    tag_names =
++      from t in Tag,
++        join: at in "article_tags",
++        on: at.tag_id == t.id,
++        where: at.article_id == parent_as(:article).id,
++        select: fragment("coalesce(array_agg(? ORDER BY ?), '{}')", t.name, t.name)
++
+     from a in Article,
+       as: :article,
+       join: u in assoc(a, :author),
+       as: :author,
+-      preload: :tags,
+       select: %{
+         a
+-        | favorites_count: subquery(from f in favorites, select: count()),
++        | tag_list: subquery(tag_names),
++          favorites_count: subquery(from f in favorites, select: count()),
+           favorited: exists(subquery(favorited)),
+           author: %{u | following: exists(subquery(Profiles.follows_author(viewer_id)))}
+       }
+diff -ru a/lib/conduit_web/controllers/article_json.ex b/lib/conduit_web/controllers/article_json.ex
+--- a/lib/conduit_web/controllers/article_json.ex	2026-10-23 22:30:05.000000000 +0000
++++ b/lib/conduit_web/controllers/article_json.ex	2026-10-23 23:24:14.102516651 +0000
+@@ -16,7 +16,7 @@
+       slug: article.slug,
+       title: article.title,
+       description: article.description,
+-      tagList: Enum.map(article.tags, & &1.name),
++      tagList: article.tag_list,
+       createdAt: Timestamps.format(article.created_at),
+       updatedAt: Timestamps.format(article.updated_at),
+       favorited: article.favorited,
+diff -ru a/test/conduit/blog_test.exs b/test/conduit/blog_test.exs
+--- a/test/conduit/blog_test.exs	2026-10-23 22:30:05.000000000 +0000
++++ b/test/conduit/blog_test.exs	2026-10-23 23:24:14.108310269 +0000
+@@ -15,7 +15,7 @@
+       article = article_fixture(alice, %{"title" => "Hello, World!", "tag_list" => ["zeta", "alpha", "zeta"]})
+ 
+       assert article.slug == "hello-world-#{article.id}"
+-      assert Enum.map(article.tags, & &1.name) == ["alpha", "zeta"]
++      assert article.tag_list == ["alpha", "zeta"]
+       assert article.author.id == alice.id
+       assert %{favorited: false, favorites_count: 0} = article
+     end
