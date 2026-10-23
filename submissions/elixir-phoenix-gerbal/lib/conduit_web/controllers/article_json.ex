@@ -16,7 +16,7 @@ defmodule ConduitWeb.ArticleJSON do
       slug: article.slug,
       title: article.title,
       description: article.description,
-      tagList: Enum.map(article.tags, & &1.name),
+      tagList: article.tag_list,
       createdAt: Timestamps.format(article.created_at),
       updatedAt: Timestamps.format(article.updated_at),
       favorited: article.favorited,

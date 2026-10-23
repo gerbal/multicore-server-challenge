@@ -15,9 +15,14 @@ defmodule Conduit.BlogTest do
       article = article_fixture(alice, %{"title" => "Hello, World!", "tag_list" => ["zeta", "alpha", "zeta"]})
 
       assert article.slug == "hello-world-#{article.id}"
-      assert Enum.map(article.tags, & &1.name) == ["alpha", "zeta"]
+      assert article.tag_list == ["alpha", "zeta"]
       assert article.author.id == alice.id
       assert %{favorited: false, favorites_count: 0} = article
+    end
+
+    test "an article without tags has an empty tag list", %{alice: alice} do
+      assert article_fixture(alice).tag_list == []
+      assert {:ok, %{articles: [%{tag_list: []}]}} = Blog.list_articles(%{}, nil)
     end
 
     test "reuses existing tags", %{alice: alice} do

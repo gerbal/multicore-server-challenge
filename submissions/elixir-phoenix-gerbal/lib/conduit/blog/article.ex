@@ -17,7 +17,7 @@ defmodule Conduit.Blog.Article do
     field :favorites_count, :integer, virtual: true, default: 0
     field :favorited, :boolean, virtual: true, default: false
 
-    # The tag names given when publishing; `tags` holds the linked Tag rows.
+    # Tag names: given when publishing, and set (sorted) by queries that load articles.
     field :tag_list, {:array, :string}, virtual: true, default: []
 
     belongs_to :author, User

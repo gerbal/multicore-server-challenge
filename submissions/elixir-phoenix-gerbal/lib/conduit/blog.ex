@@ -130,19 +130,28 @@ defmodule Conduit.Blog do
     |> Repo.aggregate(:count)
   end
 
-  # Articles with their author, tags, favorite count, and the viewer's `favorited` and `following`.
+  # Articles with their author, tag names, favorite count, and the viewer's `favorited` and `following`.
+  #
+  # Tag names are aggregated in the same query rather than preloaded, which would cost a second round trip.
   defp articles_query(viewer_id) do
     favorites = from f in Favorite, where: f.article_id == parent_as(:article).id
     favorited = from f in favorites, where: f.user_id == ^(viewer_id || 0)
+
+    tag_names =
+      from t in Tag,
+        join: at in "article_tags",
+        on: at.tag_id == t.id,
+        where: at.article_id == parent_as(:article).id,
+        select: fragment("coalesce(array_agg(? ORDER BY ?), '{}')", t.name, t.name)
 
     from a in Article,
       as: :article,
       join: u in assoc(a, :author),
       as: :author,
-      preload: :tags,
       select: %{
         a
-        | favorites_count: subquery(from f in favorites, select: count()),
+        | tag_list: subquery(tag_names),
+          favorites_count: subquery(from f in favorites, select: count()),
           favorited: exists(subquery(favorited)),
           author: %{u | following: exists(subquery(Profiles.follows_author(viewer_id)))}
       }
