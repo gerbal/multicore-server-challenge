@@ -31,7 +31,8 @@ front, so this submission does too.
 | `35c48a4` | Bandit response compression off |
 | `064f815` | `Front: direct`: `+Q 1000000`, backlog 8,192, GC after every keep-alive request, README |
 | `3578003` | This `tuning/` folder (draft handover) |
-| *(latest)* | Tag names aggregated inside the article query; handover finished; session 1 results |
+| `81ffe73` | Tag names aggregated inside the article query |
+| `73caebb`, then this file's last edit | Handover finished; session 1 data |
 
 ### What the shipped config sets, and why
 
