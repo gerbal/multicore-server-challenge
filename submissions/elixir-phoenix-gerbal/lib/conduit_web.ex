@@ -1,14 +1,30 @@
 defmodule ConduitWeb do
-  @moduledoc "`use ConduitWeb, :controller`."
+  @moduledoc """
+  The web interface: `use ConduitWeb, :controller`, `:router` or `:verified_routes`.
+  """
+
+  def router do
+    quote do
+      use Phoenix.Router, helpers: false
+
+      import Plug.Conn
+      import Phoenix.Controller
+    end
+  end
 
   def controller do
     quote do
       use Phoenix.Controller, formats: [:json]
+
       import Plug.Conn
-      import ConduitWeb.Reply
-      alias Conduit.{Repo, SQL}
-      alias ConduitWeb.Body
+
       action_fallback ConduitWeb.FallbackController
+    end
+  end
+
+  def verified_routes do
+    quote do
+      use Phoenix.VerifiedRoutes, endpoint: ConduitWeb.Endpoint, router: ConduitWeb.Router
     end
   end
 

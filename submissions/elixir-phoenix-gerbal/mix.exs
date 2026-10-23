@@ -7,7 +7,9 @@ defmodule Conduit.MixProject do
       version: "0.1.0",
       elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
+      aliases: aliases(),
       releases: [conduit: [include_executables_for: [:unix]]]
     ]
   end
@@ -15,6 +17,9 @@ defmodule Conduit.MixProject do
   def application do
     [mod: {Conduit.Application, []}, extra_applications: [:logger, :crypto]]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
 
   defp deps do
     [
@@ -25,6 +30,14 @@ defmodule Conduit.MixProject do
       {:jason, "~> 1.4"},
       {:joken, "~> 2.7"},
       {:bcrypt_elixir, "~> 3.3"}
+    ]
+  end
+
+  # The schema is the challenge's ../../schema.sql, which the app must not change, so tests load it into a fresh
+  # database instead of running migrations.
+  defp aliases do
+    [
+      test: ["ecto.drop --quiet", "ecto.create --quiet", "ecto.load --quiet --dump-path ../../schema.sql", "test"]
     ]
   end
 end

@@ -1,8 +1,7 @@
 defmodule ConduitWeb.TagController do
   use ConduitWeb, :controller
 
-  def index(conn, _params) do
-    tags = for [name] <- Repo.all_rows(SQL.tags(), []), do: name
-    reply(conn, 200, %{tags: tags})
-  end
+  alias Conduit.Blog
+
+  def index(conn, _params), do: render(conn, :index, tags: Blog.list_tags())
 end

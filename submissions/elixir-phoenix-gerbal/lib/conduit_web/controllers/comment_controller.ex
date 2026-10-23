@@ -1,53 +1,27 @@
 defmodule ConduitWeb.CommentController do
   use ConduitWeb, :controller
 
+  alias Conduit.Blog
+
   def index(conn, %{"slug" => slug}) do
-    case Repo.one_row(SQL.article_id_by_slug(), [slug]) do
-      nil ->
-        {:error, 404, "article not found"}
-
-      [article_id] ->
-        rows = Repo.all_rows(SQL.comments(), [conn.assigns.viewer, article_id])
-        reply(conn, 200, %{comments: Enum.map(rows, &comment/1)})
+    with {:ok, comments} <- Blog.list_comments(slug, conn.assigns.current_user_id) do
+      render(conn, :index, comments: comments)
     end
   end
 
-  def create(conn, %{"slug" => slug}) do
-    with {:ok, fields, conn} <- Body.fetch(conn, "comment"),
-         {:ok, body} <- Body.required(fields, "body") do
-      case Repo.one_row(SQL.article_id_by_slug(), [slug]) do
-        nil ->
-          {:error, 404, "article not found"}
-
-        [article_id] ->
-          row = Repo.one_row(SQL.insert_comment(), [article_id, conn.assigns.viewer, body])
-          reply(conn, 201, %{comment: comment(row ++ [false])})
-      end
+  def create(conn, %{"slug" => slug, "comment" => %{} = comment_params}) do
+    with {:ok, comment} <- Blog.create_comment(slug, conn.assigns.current_user_id, comment_params) do
+      conn
+      |> put_status(:created)
+      |> render(:show, comment: comment)
     end
   end
+
+  def create(_conn, _params), do: {:error, :invalid_body}
 
   def delete(conn, %{"slug" => slug, "id" => id}) do
-    with {:ok, id} <- parse_id(id) do
-      case Repo.one_row(SQL.comment_owner(), [id, slug]) do
-        nil ->
-          {:error, 404, "comment not found"}
-
-        [author_id] when author_id != conn.assigns.viewer ->
-          {:error, 403, "not your comment"}
-
-        [_] ->
-          Repo.query!(SQL.delete_comment(), [id])
-          no_content(conn)
-      end
-    end
-  end
-
-  # Only plain digits that fit in a bigint; anything else is no such comment.
-  defp parse_id(id) do
-    with true <- id =~ ~r/\A[0-9]{1,18}\z/, {n, ""} <- Integer.parse(id) do
-      {:ok, n}
-    else
-      _ -> {:error, 404, "comment not found"}
+    with :ok <- Blog.delete_comment(slug, id, conn.assigns.current_user_id) do
+      send_resp(conn, :no_content, "")
     end
   end
 end

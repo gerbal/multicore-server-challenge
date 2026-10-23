@@ -2,43 +2,85 @@
 
 **Front: nginx**
 
-A plain, unoptimized baseline in the spirit of the [examples](../../examples): the language's most popular web
-framework used the way its guides use it, the reference SQL from [SPEC.md](../../SPEC.md) verbatim, and no tuning
-beyond the pool size. It's meant as a starting point and a point of comparison, not a contender.
+A baseline written the way a Phoenix team would write it: contexts, Ecto schemas and changesets, composable Ecto
+queries, JSON view modules and an ExUnit suite. There's no performance tuning beyond the pool size. It's a
+reference point for idiomatic Elixir rather than a contender.
 
 | Piece | Version |
 |---|---|
 | Erlang/OTP | 28.5.0.8 (hex.pm's official Ubuntu 24.04 build, sha256-pinned in `install.sh`) |
 | Elixir | 1.19.6 (official release zip, sha256-pinned) |
-| HTTP | Phoenix 1.8 on Bandit 1.x (router, pipelines, controllers, `action_fallback`) |
-| JSON | Jason |
-| Postgres | Ecto SQL 3.x + Postgrex (`Repo.query/2` with the reference SQL, no schemas) |
-| JWT | Joken 2.x (HS256; `exp` required and checked) |
-| bcrypt | bcrypt_elixir 3.x, cost 10 |
+| HTTP | Phoenix 1.8 on Bandit 1.13 |
+| JSON | Jason 1.4 |
+| Postgres | Ecto SQL 3.14 + Postgrex 0.22 |
+| JWT | Joken 2.7 (HS256) |
+| bcrypt | bcrypt_elixir 3.3, cost 10 |
 
-Exact dependency versions and hashes are in `mix.lock`. `install.sh` is the same toolchain installer as
+Exact versions and hashes are in `mix.lock`. `install.sh` is the same toolchain installer as
 [`elixir-raw-foovoo`](../elixir-raw-foovoo).
+
+## Layout
+
+| | |
+|---|---|
+| `Conduit.Accounts` | Sign-up, login, the current user, tokens (`Accounts.User`, `Accounts.Token`) |
+| `Conduit.Profiles` | Profiles and follows (`Profiles.Follow`) |
+| `Conduit.Blog` | Articles, the feed, favorites, comments, tags (`Blog.Article`, `Comment`, `Tag`, `Favorite`) |
+| `ConduitWeb.*Controller` | One per resource; they call a context and return `{:error, reason}` to `FallbackController` |
+| `ConduitWeb.*JSON` | The response shapes (`UserJSON`, `ProfileJSON`, `ArticleJSON`, `CommentJSON`, ...) |
+| `ConduitWeb.Plugs` | `Authenticate` (required/optional token) and `Parsers` (`Plug.Parsers`, but bad JSON is a 422) |
+
+Input is validated by changesets: required and non-blank fields, string types, passwords of at most 72 bytes
+(bcrypt ignores the rest), unique usernames and emails through `unique_constraint`, and list paging through a
+schemaless changeset. Changeset errors become RealWorld's `{"errors": {"body": [...]}}` with messages like
+`"email has already been taken"`.
+
+## Queries
+
+The queries are Ecto's, not SPEC.md's SQL strings, but they keep the reference SQL's shape and results:
+
+- Lists choose a page of ids first (by tag, author or favoriting user through joins, newest first), then load that
+  page. The favorite count and the viewer's `favorited` and `following` are correlated subqueries in the select
+  (`exists(subquery(...))` with `parent_as`), so they run once per article on the page.
+- The feed takes each followed author's newest `limit + offset` articles through a lateral join and merges them,
+  so it walks `articles_author_idx` instead of sorting everything the followed authors ever wrote.
+- `articlesCount` is `count(*)` over a subquery limited to 1,000 rows.
+- Tags are a `many_to_many` preloaded in name order. That's one extra query per page compared with the reference's
+  `ARRAY(...)` column.
+- Publishing is a single `Repo.insert`. `prepare_changes` takes the id from the sequence, sets the slug and upserts
+  and links the tags inside the insert's transaction. Slugs are computed in Elixir, byte-for-byte the same as
+  SPEC.md's `SLUGIFY`.
 
 ## Multicore model
 
-One BEAM node with the default schedulers (one per core), so Bandit's one-process-per-connection model and
-bcrypt's NIF (on dirty CPU schedulers) spread over every core with no configuration. One Ecto pool of
-`DB_POOL_SIZE` connections, 10 per core capped at 90 (80 on the 8-core box), like the Go example.
+One BEAM node with the default schedulers (one per core): Bandit runs a process per connection, and bcrypt's NIF
+runs on the dirty CPU schedulers. One Ecto pool of `DB_POOL_SIZE` connections, 10 per core capped at 90 (80 on the
+8-core box), like the Go example. Ecto prepares and caches each query per connection.
 
 ## Settings beyond the defaults
 
-- Bandit's `read_timeout` is 75 s so idle keep-alive connections outlive Nginx's 60 s upstream keep-alive.
-- Request bodies are read and decoded in the controllers (`ConduitWeb.Body`) instead of with `Plug.Parsers`, so a
-  malformed or empty body gives 422 instead of Plug's 400.
-- Unknown routes and crashes render the `{"errors": {"body": [...]}}` shape (`ConduitWeb.ErrorJSON`).
-- Logger level `:warning` (no per-request logging).
-- Passwords over 72 bytes are rejected on register and password change (bcrypt ignores the rest).
+- Bandit's `read_timeout` is 75 s, so idle keep-alive connections outlive Nginx's 60 s upstream keep-alive.
+- `limit` and `offset` must be plain digits (`Conduit.Types.PlainInteger`); Ecto's `:integer` would also take `+5`.
+- Logger level `:warning` in prod.
 
-## Build and run
+## Behavior that differs from the reference
+
+- A field that is only whitespace counts as blank, as Ecto treats it by default. A username of `" "` is a 422
+  here; the reference only rejects `""`.
+- An `offset` too large for the feed's `limit + offset` to fit in a bigint (over 2^63 − 101) is a 422.
+
+## Build, run and test
 
 ```bash
 sudo bash submissions/elixir-phoenix-gerbal/install.sh
-bash test/run.sh submissions/elixir-phoenix-gerbal
+bash test/run.sh submissions/elixir-phoenix-gerbal                   # conformance suite
+
+cd submissions/elixir-phoenix-gerbal
+TEST_DATABASE_URL=postgres://postgres:postgres@localhost/conduit_test mix test
 ```
+
+`mix test` drops and recreates its own database, loads [`schema.sql`](../../schema.sql) into it with `psql`, and runs
+each test in a rolled-back sandbox transaction. It needs a role that can create databases, and it hashes at cost 4
+to keep the suite fast.
 
 Environment: `DATABASE_URL`, `JWT_SECRET` (required), `HOST` (127.0.0.1), `PORT` (3000), `DB_POOL_SIZE`.
