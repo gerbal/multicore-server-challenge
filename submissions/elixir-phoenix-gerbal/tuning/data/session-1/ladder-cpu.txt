@@ -1,0 +1,6 @@
+users=300 rc=0  cpu% over run (100 = one core): beam=92 postgres=32 loadgen=0  beam_rss_mb=233
+users=1000 rc=0  cpu% over run (100 = one core): beam=158 postgres=90 loadgen=0  beam_rss_mb=320
+users=2000 rc=0  cpu% over run (100 = one core): beam=195 postgres=100 loadgen=0  beam_rss_mb=447
+users=4000 rc=0  cpu% over run (100 = one core): beam=239 postgres=51 loadgen=0  beam_rss_mb=588
+users=1400 rc=0  cpu% over run (100 = one core): beam=176 postgres=113 loadgen=0  beam_rss_mb=544
+users=1700 rc=0  cpu% over run (100 = one core): beam=186 postgres=111 loadgen=0  beam_rss_mb=510

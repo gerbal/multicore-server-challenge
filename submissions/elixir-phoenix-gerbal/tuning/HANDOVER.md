@@ -18,8 +18,8 @@ front, so this submission does too.
 ## Where things stand
 
 - Branch `ccr-a5aea6fa-zl4011`, draft **PR #1** on `gerbal/multicore-server-challenge`. All work is committed and
-  pushed; nothing is stashed that matters.
-- Conformance: 197/197 on the dev seed (local Postgres 16; CI uses 18). `mix test`: 66 tests. `install.sh` and
+  pushed. GitHub CI hadn't reported on the PR by the end of this session; check it first.
+- Conformance: 197/197 on the dev seed (local Postgres 16; CI uses 18). `mix test`: 67 tests. `install.sh` and
   `build.sh` validated on a clean Ubuntu 24.04 container.
 - Commits on the branch, oldest first:
 
@@ -30,7 +30,8 @@ front, so this submission does too.
 | `92fbd4d` | `install.sh` prints its version check in a UTF-8 locale |
 | `35c48a4` | Bandit response compression off |
 | `064f815` | `Front: direct`: `+Q 1000000`, backlog 8,192, GC after every keep-alive request, README |
-| *(see `git log`)* | Tag names aggregated inside the article query, and this folder |
+| `3578003` | This `tuning/` folder (draft handover) |
+| *(latest)* | Tag names aggregated inside the article query; handover finished; session 1 results |
 
 ### What the shipped config sets, and why
 
@@ -81,7 +82,21 @@ cost less Postgres CPU per request but are slower at saturation.
 
 Batch 4, on the direct-mode tree (`gc1` = GC after every request, as shipped):
 
-BATCH4_TABLE
+| Config | req/s | p95 | p99 | Errors | App CPU/req | PG CPU/req | Runs (req/s) |
+|---|---:|---:|---:|---:|---:|---:|---|
+| `gc1` (the direct-mode tree before the tag change) | 1,984 | 220 ms | 295 ms | 0% | 1.008 ms | 0.781 ms | 1,946 / 2,021 |
+| GC every 5th request (Bandit's default) | 2,026 | 201 ms | 268 ms | 0% | 1.007 ms | 0.771 ms | 2,000 / 2,051 |
+| Ecto + Phoenix logging off | 2,012 | 193 ms | 232 ms | 0% | 0.989 ms | 0.786 ms | 2,000 / 2,023 |
+| `pool_count: 2`, `pool_size: 20` | 1,954 | 270 ms | 361 ms | 0.35% | 1.038 ms | 0.802 ms | 2,000 / 1,908 |
+| **tag names in the article query** | **2,131** | **114 ms** | **164 ms** | **0%** | **0.920 ms** | **0.724 ms** | 2,156 / 2,107 |
+
+Reading:
+- **Tag names in the query: shipped.** +7% req/s, p95 halved, 9% less app and 7% less Postgres CPU per request,
+  and both runs beat every run of every other config.
+- **GC every request vs every 5th:** identical CPU per request and overlapping runs; the 5.7x idle-memory saving
+  is certain, so every request stays. Recheck latency on the new host.
+- **Logging off:** about 2% less app CPU per request, but runs overlap with `gc1`. Likely a win; confirm first.
+- **Two pools:** worse, and the only config that shed requests in both runs (Ecto routes to a random pool). Out.
 
 ### Single-run or 1,000-user observations (weaker)
 
@@ -94,9 +109,11 @@ BATCH4_TABLE
 
 ## Open questions, in the order I'd tackle them
 
-1. **Reproduce on the new host first.** Run `interleave.sh` with `untuned`-style vs shipped config on the full seed
-   (`TEMPLATE=conduit_seed`), ideally with the loadgen on a separate machine, to see which local findings survive.
-2. **Logging off** (Ecto `log: false`, `config :phoenix, :logger, false`): batch 4 below. If it holds on the new
+1. **Find the shipped build's knee on the new host** (full seed, `TEMPLATE=conduit_seed`, loadgen on another machine
+   if possible), then re-run the batch-4 comparisons there (logging, GC interval, pool size) with `interleave.sh`.
+   Compression and the tag change are already in the tree; reverting either is a one-line or small patch if you want
+   to confirm them at that scale.
+2. **Logging off** (Ecto `log: false`, `config :phoenix, :logger, false`): batch 4 above. If it holds on the new
    host, ship it; it's a standard production setting.
 3. **GC every request vs every 5th**: the memory saving is certain; check the latency/CPU cost on the new host. A
    middle value (2 or 3) is an option.
@@ -108,6 +125,21 @@ BATCH4_TABLE
 7. Lists load `articles.body` and authors load `password_hash`/`email` that the JSON never sends. Selecting only the
    needed fields is a small idiomatic change worth measuring.
 8. `+sbwt none` and scheduler counts (`+S`) once Postgres and the app compete for 8 real cores.
+
+## Setting up the new host
+
+To get close to the benchmark box (8 vCPU, 16 GB, Ubuntu 24.04, Postgres 18):
+
+1. `box/setup-box.sh` documents the box (kernel limits, sysctl, Postgres config via `box/pg-conf.sh`). Apply the
+   same Postgres config and file limits; the defaults this session ran with (128 MB `shared_buffers`, 20,000 open
+   files) are far from the box.
+2. Go >= 1.27, `psql`, `curl`, `bc`, `python3`; then `bash seed/make-seed.sh` for the full seed (`conduit_seed`) and
+   `bash seed/make-seed.sh --dev` for the quick one.
+3. `sudo bash submissions/elixir-phoenix-gerbal/install.sh` (Erlang/OTP + Elixir), `bash .../build.sh`, and
+   `bash test/run.sh submissions/elixir-phoenix-gerbal` to confirm 197/197 before measuring anything.
+4. Put the load generator on another machine if you can: on one machine it competes with the app and Postgres, and
+   the loadgen marks such runs "LG-limited". `bench.sh` assumes everything is local; for a remote loadgen, run
+   `bench/cmd/loadgen run -target http://<host>:<port> ...` there and keep the per-run fresh DB + restart.
 
 ## Tools in this folder
 
@@ -121,7 +153,7 @@ BATCH4_TABLE
 | `profile.sh` + `prof.exs` | `tprof` call-time profile of the prod build under load |
 | `idle-memory.sh` + `idle_conns.py` | Memory per idle keep-alive connection |
 | `port80.sh` | Binds port 80 as an unprivileged user with only the ambient capability, like `box/challenge.service` |
-| `results/session-1/` | Every result line and loadgen summary from this session (`results.txt` is the index) |
+| `data/session-1/` | Every result line and loadgen summary from this session (`results.txt` is the index) |
 
 Example on the new host:
 
@@ -156,8 +188,8 @@ python3 tuning/summarize.py /srv/results/results.txt ab-
 - **`:tprof` isn't in the release, and Mix prunes it from `mix run`'s code path.** `prof.exs` adds OTP's tools
   `ebin` to the remote node's path.
 - **Docker Hub rate-limited image pulls** (429). `mirror.gcr.io/library/ubuntu:24.04` is the same official image.
-- **DBConnection's `queue_interval` default is 2,000 ms**, not 1,000 as some older docs say. Check `deps/` for the
-  version you ship.
+- **DBConnection's `queue_interval` default is 2,000 ms.** My first experiment switch defaulted it to 1,000 ms by
+  mistake, so batch 1 ran with a non-default interval. Read option defaults from `deps/`, not from memory.
 - Ecto gotchas already handled in the code: Joken validates only the claims a token carries (so `exp` presence is
   checked explicitly); `cast` drops `""` and `nil` from string arrays unless `empty_values: []`; Ecto's `:integer`
   accepts `"+5"` (hence `Conduit.Types.PlainInteger`).
