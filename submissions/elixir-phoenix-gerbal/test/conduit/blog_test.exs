@@ -55,6 +55,11 @@ defmodule Conduit.BlogTest do
       assert slugs(page) == [second.slug]
     end
 
+    test "an offset past the last article is an empty page that still has the count" do
+      assert {:ok, %{articles: [], count: 3}} = Blog.list_articles(%{"offset" => "3"}, nil)
+      assert {:ok, %{articles: [], count: 2}} = Blog.list_articles(%{"tag" => "phoenix", "offset" => "5"}, nil)
+    end
+
     test "filters by tag, author or favoriting user", %{alice: alice, bob: bob} = ctx do
       {:ok, _} = Blog.favorite_article(ctx.second.slug, alice.id)
 
@@ -115,6 +120,7 @@ defmodule Conduit.BlogTest do
       assert slugs(page) == [new.slug, old.slug]
       assert {:ok, page} = Blog.feed(%{"limit" => "1", "offset" => "1"}, alice.id)
       assert slugs(page) == [old.slug]
+      assert {:ok, %{articles: [], count: 2}} = Blog.feed(%{"offset" => "2"}, alice.id)
     end
 
     test "is empty when following no one", %{alice: alice, bob: bob} do

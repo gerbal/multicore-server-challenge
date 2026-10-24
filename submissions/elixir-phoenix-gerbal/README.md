@@ -63,7 +63,11 @@ The queries are Ecto's, not SPEC.md's SQL strings, but they keep the reference S
   (`exists(subquery(...))` with `parent_as`), so they run once per article on the page.
 - The feed takes each followed author's newest `limit + offset` articles through a lateral join and merges them,
   so it walks `articles_author_idx` instead of sorting everything the followed authors ever wrote.
-- `articlesCount` is `count(*)` over a subquery limited to 1,000 rows.
+- `articlesCount` is `count(*)` over a subquery limited to 1,000 rows. It rides along with the page's ids as an
+  uncorrelated scalar subquery (`select: {p.id, subquery(count)}`), which Postgres runs once, so a list is two
+  statements (ids and count, then the articles); only a page past the end, which has no row to carry the count,
+  asks for it separately. At real pacing (36,000 users, interleaved) that took 9,034 → 9,292 req/s and p95
+  481 → 236 ms.
 - Tag names are aggregated in the same query (a correlated subquery with `array_agg(... ORDER BY name)`), like the
   reference's `ARRAY(...)` column. A `many_to_many` preload would be the more obvious Ecto, but it costs a second
   round trip per page: in local interleaved runs (1,700 users) aggregating them took 1,984 → 2,131 req/s and p95

@@ -38,7 +38,8 @@ defmodule Conduit.Blog do
   def list_articles(params, viewer_id) do
     with {:ok, opts} <- list_options(params) do
       ids = opts |> filter() |> matching_ids() |> subquery()
-      {:ok, %{articles: list_page(ids, opts, viewer_id), count: capped_count(ids)}}
+      page_ids = from i in ids, order_by: [desc: i.id], limit: ^opts.limit, offset: ^opts.offset, select: %{id: i.id}
+      {:ok, list_page(page_ids, ids, opts.offset, viewer_id)}
     end
   end
 
@@ -65,12 +66,12 @@ defmodule Conduit.Blog do
           order_by: [desc: a.id],
           limit: ^limit,
           offset: ^offset,
-          select: a.id
+          select: %{id: a.id}
 
       followees = from f in Follow, where: f.follower_id == ^viewer_id, select: f.followee_id
-      count = capped_count(from a in Article, where: a.author_id in subquery(followees), select: %{id: a.id})
+      followed = from a in Article, where: a.author_id in subquery(followees), select: %{id: a.id}
 
-      {:ok, %{articles: load_page(page_ids, viewer_id), count: count}}
+      {:ok, list_page(page_ids, followed, offset, viewer_id)}
     end
   end
 
@@ -115,31 +116,27 @@ defmodule Conduit.Blog do
 
   defp user_id(username), do: from(u in User, where: u.username == ^username, select: u.id)
 
-  defp list_page(ids, %{limit: limit, offset: offset}, viewer_id) do
-    page_ids = from i in ids, order_by: [desc: i.id], limit: ^limit, offset: ^offset, select: i.id
-    load_page(page_ids, viewer_id)
-  end
-
   # Lists pick a page of ids first and then load just those articles, so the per-article subqueries for counts and
-  # the viewer run for the page only. The two are separate statements: with the page's `LIMIT` and `OFFSET` as
+  # the viewer run for the page only. The ids come with the capped count of all `matching` ids, an uncorrelated scalar
+  # subquery that Postgres runs once. The articles are a second statement: with the page's `LIMIT` and `OFFSET` as
   # parameters Postgres can't reuse a generic plan for the big article query, and planning it on every call cost more
   # than running it. Loaded by an id list, it is planned once per connection.
-  defp load_page(page_ids, viewer_id) do
-    case Repo.all(page_ids) do
+  defp list_page(page_ids, matching, offset, viewer_id) do
+    count = from m in subquery(limit(matching, @count_cap)), select: count()
+
+    case Repo.all(from p in subquery(page_ids), order_by: [desc: p.id], select: {p.id, subquery(count)}) do
+      [] when offset == 0 ->
+        %{articles: [], count: 0}
+
+      # Past the last page there is no row to carry the count.
       [] ->
-        []
+        %{articles: [], count: Repo.one(count)}
 
-      ids ->
+      [{_id, count} | _] = rows ->
+        ids = Enum.map(rows, &elem(&1, 0))
         query = articles_query(viewer_id, @summary_fields)
-        Repo.all(from a in query, where: a.id in ^ids, order_by: [desc: a.id])
+        %{articles: Repo.all(from a in query, where: a.id in ^ids, order_by: [desc: a.id]), count: count}
     end
-  end
-
-  defp capped_count(ids) do
-    ids
-    |> limit(@count_cap)
-    |> subquery()
-    |> Repo.aggregate(:count)
   end
 
   # Articles with their author, tag names, favorite count, and the viewer's `favorited` and `following`.
