@@ -193,3 +193,11 @@ b22-shipped-1          users=36000  req/s=9039.0   p50=152.4   p95=470.5   p99=5
 b22-mcount-1           users=36000  req/s=9230.7   p50=117.9   p95=282.9   p99=385.8   err%=0.00   app_ms/req=0.482 pg_ms/req=0.334 app_cores=4.45 pg_cores=3.08
 b22-mcount-2           users=36000  req/s=9353.3   p50=72.9    p95=188.9   p99=254.8   err%=0.00   app_ms/req=0.474 pg_ms/req=0.335 app_cores=4.44 pg_cores=3.14
 b22-shipped-2          users=36000  req/s=9029.9   p50=146.9   p95=490.8   p99=579.1   err%=0.00   app_ms/req=0.496 pg_ms/req=0.336 app_cores=4.48 pg_cores=3.04
+b23-shipped-1          users=37000  req/s=9334.8   p50=169.7   p95=383.7   p99=518.7   err%=0.00   app_ms/req=0.478 pg_ms/req=0.329 app_cores=4.46 pg_cores=3.08
+b23-nolog-1            users=37000  req/s=9457.5   p50=132.0   p95=326.4   p99=413.7   err%=0.00   app_ms/req=0.470 pg_ms/req=0.331 app_cores=4.45 pg_cores=3.13
+b23-s5-1               users=37000  req/s=9444.7   p50=114.9   p95=265.7   p99=347.9   err%=0.00   app_ms/req=0.456 pg_ms/req=0.332 app_cores=4.30 pg_cores=3.13
+b23-h2584-1            users=37000  req/s=9225.2   p50=202.2   p95=455.7   p99=605.7   err%=0.00   app_ms/req=0.482 pg_ms/req=0.334 app_cores=4.44 pg_cores=3.08
+b23-h2584-2            users=37000  req/s=9400.9   p50=162.4   p95=362.2   p99=504.6   err%=0.00   app_ms/req=0.480 pg_ms/req=0.326 app_cores=4.52 pg_cores=3.07
+b23-s5-2               users=37000  req/s=9433.1   p50=133.5   p95=313.3   p99=384.0   err%=0.00   app_ms/req=0.459 pg_ms/req=0.332 app_cores=4.33 pg_cores=3.13
+b23-nolog-2            users=37000  req/s=9387.8   p50=143.4   p95=329.2   p99=429.3   err%=0.00   app_ms/req=0.472 pg_ms/req=0.331 app_cores=4.43 pg_cores=3.11
+b23-shipped-2          users=37000  req/s=9386.0   p50=135.7   p95=335.9   p99=417.3   err%=0.00   app_ms/req=0.474 pg_ms/req=0.329 app_cores=4.45 pg_cores=3.09

@@ -7,7 +7,11 @@ set -euo pipefail
 cd "$(dirname "$0")"
 pool=$(( 3 * $(nproc) )); (( pool <= 90 )) || pool=90
 export DB_POOL_SIZE="${DB_POOL_SIZE:-$pool}"
+# Normal schedulers on 5/8 of the cores (5 of 8): Postgres burns most of the rest, and extra runnable scheduler
+# threads only preempt it. At real pacing on 8 threads (37,000 users, interleaved) +S 5:5 took app CPU per request
+# 0.476 -> 0.458 ms and p95 360 -> 290 ms.
+sched=$(( ($(nproc) * 5 + 4) / 8 )); (( sched >= 2 )) || sched=2
 # Serving directly, every user's keep-alive connection is a BEAM port; the default port limit (65,536) would cap them.
-export ERL_AFLAGS="+Q 1000000 ${ERL_AFLAGS:-}"
+export ERL_AFLAGS="+Q 1000000 +S $sched:$sched ${ERL_AFLAGS:-}"
 export RELEASE_DISTRIBUTION=none LANG=C.UTF-8
 exec _build/prod/rel/conduit/bin/conduit start
