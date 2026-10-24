@@ -1,0 +1,1 @@
+pg1                    users=38000  req/s=9820.2   p50=71.6    p95=267.3   p99=336.6   err%=0.00   app_ms/req=0.424 pg_ms/req=0.333 app_cores=4.16 pg_cores=3.27

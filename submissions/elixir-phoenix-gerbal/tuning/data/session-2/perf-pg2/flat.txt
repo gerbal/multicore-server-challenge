@@ -1,0 +1,89 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 29K of event 'cpu/cycles/Pu'
+# Event count (approx.): 206052587945
+#
+# Overhead  Shared Object     Symbol                                      IPC   [IPC Coverage]
+# ........  ................  ..........................................  ....................
+#
+     6.03%  postgres          [.] _bt_compare                             -      -            
+     5.82%  postgres          [.] hash_search_with_hash_value             -      -            
+     2.17%  postgres          [.] AllocSetAlloc                           -      -            
+     1.43%  postgres          [.] _bt_checkpage                           -      -            
+     1.28%  postgres          [.] 0x000000000055a46f                      -      -            
+     1.20%  postgres          [.] index_deform_tuple_internal             -      -            
+     1.18%  postgres          [.] StartReadBuffer                         -      -            
+     1.08%  postgres          [.] MemoryContextReset                      -      -            
+     1.02%  postgres          [.] expression_tree_walker_impl             -      -            
+     1.01%  postgres          [.] _bt_checkkeys                           -      -            
+     0.98%  postgres          [.] ExecScan                                -      -            
+     0.93%  postgres          [.] heap_page_prune_opt                     -      -            
+     0.83%  postgres          [.] palloc0                                 -      -            
+     0.82%  postgres          [.] AllocSetContextCreateInternal           -      -            
+     0.79%  postgres          [.] index_getnext_tid                       -      -            
+     0.79%  postgres          [.] FunctionCall2Coll                       -      -            
+     0.78%  postgres          [.] visibilitymap_get_status                -      -            
+     0.76%  postgres          [.] ResourceOwnerForget                     -      -            
+     0.75%  postgres          [.] CheckExprStillValid                     -      -            
+     0.74%  postgres          [.] 0x0000000000708136                      -      -            
+     0.74%  postgres          [.] AllocSetFree                            -      -            
+     0.70%  postgres          [.] 0x00000000001fb114                      -      -            
+     0.70%  postgres          [.] heap_hot_search_buffer                  -      -            
+     0.70%  postgres          [.] PostgresMain                            -      -            
+     0.59%  postgres          [.] _bt_next                                -      -            
+     0.55%  postgres          [.] _bt_first                               -      -            
+     0.54%  postgres          [.] exprTypmod                              -      -            
+     0.51%  postgres          [.] pq_begintypsend                         -      -            
+     0.51%  postgres          [.] LockAcquireExtended                     -      -            
+     0.47%  postgres          [.] btgettuple                              -      -            
+     0.46%  postgres          [.] 0x00000000007080e4                      -      -            
+     0.45%  postgres          [.] hash_bytes                              -      -            
+     0.43%  postgres          [.] 0x0000000000200821                      -      -            
+     0.43%  postgres          [.] _bt_preprocess_keys                     -      -            
+     0.40%  postgres          [.] 0x0000000000589a43                      -      -            
+     0.40%  postgres          [.] 0x00000000007107db                      -      -            
+     0.40%  postgres          [.] ExecInitNode                            -      -            
+     0.40%  postgres          [.] 0x00000000001fb117                      -      -            
+     0.37%  postgres          [.] 0x0000000000209ddf                      -      -            
+     0.37%  postgres          [.] heap_compute_data_size                  -      -            
+     0.37%  postgres          [.] ExecIndexBuildScanKeys                  -      -            
+     0.36%  postgres          [.] ExecReScan                              -      -            
+     0.36%  postgres          [.] AllocSetReset                           -      -            
+     0.36%  postgres          [.] LWLockAcquire                           -      -            
+     0.34%  postgres          [.] TupleDescInitEntry                      -      -            
+     0.33%  postgres          [.] 0x00000000003a93ab                      -      -            
+     0.33%  postgres          [.] ExprEvalPushStep                        -      -            
+     0.33%  postgres          [.] copyObjectImpl                          -      -            
+     0.31%  postgres          [.] ReadBufferExtended                      -      -            
+     0.30%  postgres          [.] 0x000000000039b4e0                      -      -            
+     0.29%  postgres          [.] _bt_search                              -      -            
+     0.29%  postgres          [.] heap_fill_tuple                         -      -            
+     0.28%  postgres          [.] PredicateLockPage                       -      -            
+     0.28%  postgres          [.] hash_seq_search                         -      -            
+     0.27%  postgres          [.] LWLockRelease                           -      -            
+     0.27%  postgres          [.] nocachegetattr                          -      -            
+     0.27%  postgres          [.] appendBinaryStringInfo                  -      -            
+     0.26%  postgres          [.] tuplesort_puttuple_common               -      -            
+     0.26%  postgres          [.] LockReleaseAll                          -      -            
+     0.25%  postgres          [.] 0x00000000007103ff                      -      -            
+     0.25%  postgres          [.] RelationIdGetRelation                   -      -            
+     0.25%  postgres          [.] enlargeStringInfo                       -      -            
+     0.24%  postgres          [.] 0x000000000071066f                      -      -            
+     0.24%  postgres          [.] ResourceOwnerEnlarge                    -      -            
+     0.24%  postgres          [.] 0x0000000000708092                      -      -            
+     0.23%  postgres          [.] ExecInitIndexOnlyScan                   -      -            
+     0.23%  postgres          [.] _bt_getroot                             -      -            
+     0.23%  postgres          [.] MemoryContextDelete                     -      -            
+     0.23%  libc.so.6         [.] malloc                                  -      -            
+     0.22%  postgres          [.] tuplesort_puttupleslot                  -      -            
+     0.22%  postgres          [.] heap_form_minimal_tuple                 -      -            
+     0.21%  postgres          [.] 0x00000000003a936c                      -      -            
+     0.21%  postgres          [.] populate_compact_attribute              -      -            
+
+
+#
+# (Tip: To see callchains in a more compact form: perf report -g folded)
+#

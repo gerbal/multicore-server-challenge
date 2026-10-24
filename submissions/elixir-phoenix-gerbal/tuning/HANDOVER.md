@@ -384,6 +384,28 @@ were noise.
 37,000 and 38,000 pass; the 5-minute hold at 38,000 passed with 9,609 req/s, p95 359 ms, p99 481 ms, 0% errors).
 Up from 37,000, inside the search's 5% resolution; ≈ 29,600 on the box with the calibration above.
 
+### A perf profile of Postgres (`TARGET=postgres perf.sh`, 38,000 users)
+
+Postgres is ~40% of the CPU per request and had only been read through `EXPLAIN`. Sampling its 24 backends
+(`data/session-2/perf-pg1/`, before; `perf-pg2/`, after the tag fix): before, `ExecSubPlan` was 27% inclusive and
+`MultiExecHash`/`ExecScanHashBucket`/`heap_getnextslot` showed a hash join over a sequential scan inside the
+per-article tag subplan, which `EXPLAIN` confirmed (200 tags scanned and hashed per article, 70% of the page's
+article statement). pgbench of five rewrites, same results each (`md5` of the rows): the reference's `ARRAY(... JOIN
+...)` and `IN (subquery)` keep the hash (0.36 ms); `= ANY(ARRAY(subquery))`, a scalar name lookup per row, a lateral
+one-row lookup, and `enable_hashjoin = off` all give 0.23 ms. The lateral form is the one Ecto expresses (a scalar
+subquery as a map value in a `from` subquery is rejected), shipped in batch 31.
+
+After it: executor run 66% (B-tree descents 27%, subplans 16%), executor start 14% (initializing sort, nested-loop,
+merge- and hash-join nodes, partly the viewer left joins, which Postgres plans as sort + merge join and hash join),
+`GetCachedPlan` 8.7% (5% re-planning statements that keep custom plans, such as the list ids query with its
+`LIMIT`/`OFFSET`). Left: making the viewer joins plan as primary-key lookups too, and the custom-plan statements.
+
+**Held score of `9df6969` on this rig: 39,000** (`search.sh` from 41,000: probes 41,000 pass (p95 244 ms), 43,000
+fail (562 ms), 45,000 fail (48% errors, app 4.75 cores, Postgres 1.55); the hold at 41,000 failed on p95 527 ms and
+the hold at 39,000 passed: 10,118 req/s, p95 252 ms, p99 302 ms, 0% errors). ≈ 30,400 on the box. At overload the
+app saturates while Postgres has room, so `+S 6:6` (chosen as 5:5 when Postgres needed ~3.2 cores; now ~2.9) is the
+next thing to try.
+
 ## Open questions, in the order I'd tackle them
 
 After session 2:
