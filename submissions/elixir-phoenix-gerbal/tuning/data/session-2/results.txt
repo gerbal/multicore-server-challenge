@@ -293,3 +293,13 @@ s4-probe-43000         users=43000  req/s=10668.0  p50=195.5   p95=438.5   p99=5
 s4-hold-43000          users=43000  req/s=10252.4  p50=371.2   p95=809.0   p99=1012.7  err%=14.88  app_ms/req=0.446 pg_ms/req=0.244 app_cores=4.58 pg_cores=2.50
 s4-hold-41000          users=41000  req/s=10037.3  p50=271.4   p95=651.8   p99=841.7   err%=0.00   app_ms/req=0.438 pg_ms/req=0.297 app_cores=4.40 pg_cores=2.98
 s4-hold-39000          users=39000  req/s=10171.3  p50=38.3    p95=213.6   p99=269.8   err%=0.00   app_ms/req=0.432 pg_ms/req=0.281 app_cores=4.39 pg_cores=2.86
+b34-fast-1             users=41000  req/s=10313.7  p50=175.2   p95=412.2   p99=555.5   err%=0.00   app_ms/req=0.420 pg_ms/req=0.288 app_cores=4.34 pg_cores=2.97
+b34-pool20-1           users=41000  req/s=10323.1  p50=171.8   p95=496.1   p99=648.7   err%=0.00   app_ms/req=0.426 pg_ms/req=0.281 app_cores=4.39 pg_cores=2.90
+b34-base-1             users=41000  req/s=10315.6  p50=185.9   p95=475.6   p99=642.6   err%=0.00   app_ms/req=0.429 pg_ms/req=0.282 app_cores=4.43 pg_cores=2.91
+b34-sbt-1              users=41000  req/s=10043.7  p50=268.3   p95=658.4   p99=846.3   err%=0.00   app_ms/req=0.426 pg_ms/req=0.301 app_cores=4.28 pg_cores=3.02
+b34-pool28-1           users=41000  req/s=10434.1  p50=137.2   p95=338.9   p99=443.6   err%=0.00   app_ms/req=0.414 pg_ms/req=0.294 app_cores=4.32 pg_cores=3.07
+b34-pool28-2           users=41000  req/s=10454.7  p50=143.1   p95=394.5   p99=526.8   err%=0.00   app_ms/req=0.413 pg_ms/req=0.289 app_cores=4.32 pg_cores=3.02
+b34-sbt-2              users=41000  req/s=10238.6  p50=213.0   p95=504.6   p99=688.1   err%=0.00   app_ms/req=0.423 pg_ms/req=0.290 app_cores=4.33 pg_cores=2.97
+b34-base-2             users=41000  req/s=10223.8  p50=213.5   p95=505.9   p99=684.5   err%=0.00   app_ms/req=0.432 pg_ms/req=0.289 app_cores=4.41 pg_cores=2.95
+b34-pool20-2           users=41000  req/s=10226.2  p50=215.7   p95=530.9   p99=684.0   err%=0.00   app_ms/req=0.429 pg_ms/req=0.283 app_cores=4.39 pg_cores=2.90
+b34-fast-2             users=41000  req/s=10487.4  p50=126.3   p95=353.0   p99=439.8   err%=0.00   app_ms/req=0.417 pg_ms/req=0.282 app_cores=4.37 pg_cores=2.96

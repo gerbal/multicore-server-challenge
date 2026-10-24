@@ -86,6 +86,13 @@ The queries are Ecto's, not SPEC.md's SQL strings, but they keep the reference S
   statements (ids and count, then the articles); only a page past the end, which has no row to carry the count,
   asks for it separately. At real pacing (36,000 users, interleaved) that took 9,034 → 9,292 req/s and p95
   481 → 236 ms.
+- The tag list (`GET /api/tags`, on every home page) is one row, the names aggregated by Postgres
+  (`array_agg(name ORDER BY name)`), rather than a row per tag: decoding and loading ~200 rows cost ~25% more app
+  CPU per call than one array.
+- Timestamps are formatted by `ConduitWeb.Timestamps` digit by digit for the API's one format, 6.7× faster than
+  `DateTime.truncate/2` + `DateTime.to_iso8601/1` (a 100-comment list formats 200 of them; checked against the
+  general path on 10,000 random times). Together, hold-shaped at 41,000 users (batch 34, compared on the last minute):
+  p95 497 → 390 ms, app CPU per request −2.8%.
 - Tag names are aggregated in the same query (a correlated subquery with `array_agg(... ORDER BY name)`), like the
   reference's `ARRAY(...)` column. A `many_to_many` preload would be the more obvious Ecto, but it costs a second
   round trip per page: in local interleaved runs (1,700 users) aggregating them took 1,984 → 2,131 req/s and p95
