@@ -14,6 +14,7 @@ It serves the internet itself (`0.0.0.0:80`), as most Phoenix deployments do wit
 | Erlang/OTP | 29.1.2 (hex.pm's official Ubuntu 24.04 build, sha256-pinned in `install.sh`) |
 | Elixir | 1.20.4 (official release zip, sha256-pinned) |
 | HTTP | Phoenix 1.8 on Bandit 1.13 |
+| Phoenix + Ecto | phoenix_ecto 4.7 (Ecto and Postgres exceptions become HTTP statuses) |
 | JSON | Elixir's built-in `JSON` (OTP's `:json` encoder) |
 | Postgres | Ecto SQL 3.14 + Postgrex 0.22 |
 | JWT | Joken 2.7 (HS256) |
@@ -38,7 +39,9 @@ in SPEC.md), passwords of at most 72 bytes (bcrypt ignores the rest), unique use
 `unique_constraint`, and list paging through a schemaless changeset. Changeset errors become RealWorld's
 `{"errors": {"body": [...]}}` with messages like `"email has already been taken"`. A write that loses a race with a
 delete (a favorite or comment on an article deleted meanwhile, or two deletes at once) is the 404 it would have been
-a moment later, through `foreign_key_constraint` and `stale_error_field`, not a 500.
+a moment later, through `foreign_key_constraint` and `stale_error_field`, not a 500. Anything that still raises
+goes through phoenix_ecto, as in a `mix phx.new` app: a slug or username that isn't UTF-8, which Postgres rejects,
+is a 400 like a query string that isn't.
 
 ## Queries
 

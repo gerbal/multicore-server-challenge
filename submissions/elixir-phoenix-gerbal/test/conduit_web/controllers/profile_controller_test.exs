@@ -24,6 +24,12 @@ defmodule ConduitWeb.ProfileControllerTest do
     assert conn |> get(~p"/api/profiles/nobody-here") |> json_response(404)
   end
 
+  # Postgres rejects text that isn't UTF-8, and phoenix_ecto makes that error a 400, as Plug does for a query string.
+  test "a username that isn't UTF-8 is a 400", %{conn: conn} do
+    assert {400, _headers, body} = assert_error_sent(400, fn -> get(conn, "/api/profiles/%FF") end)
+    assert %{"errors" => %{"body" => ["Bad Request"]}} = JSON.decode!(body)
+  end
+
   test "an invalid token is a 401 even where auth is optional", %{conn: conn} do
     celeb = user_fixture()
     conn = conn |> put_req_header("authorization", "Token not-a-jwt") |> get(~p"/api/profiles/#{celeb.username}")

@@ -24,6 +24,7 @@ defmodule Conduit.MixProject do
   defp deps do
     [
       {:phoenix, "~> 1.8"},
+      {:phoenix_ecto, "~> 4.7"},
       {:bandit, "~> 1.13"},
       {:ecto_sql, "~> 3.14"},
       {:postgrex, "~> 0.22"},
