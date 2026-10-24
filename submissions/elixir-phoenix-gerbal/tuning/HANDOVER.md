@@ -338,6 +338,7 @@ Postgres 0.33-0.34 vs its 0.33. Postgres is at parity; the remaining gap is the 
 | 29 | joins, gf and both, base mid-batch | 39,000 | base 9,649 req/s, app 0.448 ms, p95 519 ms; joins 9,775 / 0.440 / 406; gf 9,806 / 0.434 / 353; both 9,901 / 0.427 / 371. joins' Postgres saving in batch 28 (-4%) didn't repeat. Peak RSS at 37,000: base 2,474 MB, gf 2,237, both 2,300 |
 | 30 | From the second profile: the list's ids query without its `subquery(page)` wrapper (`flat`); `+IOt 2`, `+spp true`, `+sub true`, `pool_count: 2` × 12 | 38,000 | all within ~1% of base (9,852 req/s, app 0.429 ms): noise. `flat` kept as a simplification (same Postgres plans) |
 | 31 | From a perf profile of Postgres: tag names by primary key through a lateral join (`tags`), vs base and flat | 38,000 | base 9,937 req/s, app 0.424, pg 0.324 ms, p95 104 ms; tags 10,055 / 0.430 / **0.272** / **11 ms**: **shipped**. The plain join hashed a scan of all 200 tags per article (pgbench 0.36 → 0.23 ms per page statement) |
+| 32 | `+S 5:5` / `6:6` / `7:7` now that Postgres needs ~2.9 cores | 41,000 | 10,739 / 10,735 / 10,779 req/s: noise; app CPU per request 0.416 / 0.426 / 0.428 ms, so 5:5 stays |
 
 **Held score of `60e6e88` on this rig: 37,000** (probe at 39,000 failed on p95; 300 s hold at 37,000 passed,
 p95 457 ms, p99 633 ms, 0% errors, 9,221 req/s). With the calibration above (box ≈ 0.78 × rig), **≈ 29,000 on
@@ -403,8 +404,11 @@ merge- and hash-join nodes, partly the viewer left joins, which Postgres plans a
 **Held score of `9df6969` on this rig: 39,000** (`search.sh` from 41,000: probes 41,000 pass (p95 244 ms), 43,000
 fail (562 ms), 45,000 fail (48% errors, app 4.75 cores, Postgres 1.55); the hold at 41,000 failed on p95 527 ms and
 the hold at 39,000 passed: 10,118 req/s, p95 252 ms, p99 302 ms, 0% errors). ≈ 30,400 on the box. At overload the
-app saturates while Postgres has room, so `+S 6:6` (chosen as 5:5 when Postgres needed ~3.2 cores; now ~2.9) is the
-next thing to try.
+app saturates while Postgres has room, so batch 32 retried the scheduler count: `+S 5:5` stays.
+
+Note that these 30 s windows pass easily at 41,000 users (p95 ~100 ms in batch 32) while the 5-minute hold there
+failed at 527 ms: whatever degrades a long hold (checkpoints, autovacuum, connection churn, heap growth) is the next
+thing to look at, since the score is decided by the hold.
 
 ## Open questions, in the order I'd tackle them
 
