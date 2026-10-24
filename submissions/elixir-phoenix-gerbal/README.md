@@ -13,7 +13,7 @@ It serves the internet itself (`0.0.0.0:80`), as most Phoenix deployments do wit
 | Erlang/OTP | 29.1.2 (hex.pm's official Ubuntu 24.04 build, sha256-pinned in `install.sh`) |
 | Elixir | 1.20.4 (official release zip, sha256-pinned) |
 | HTTP | Phoenix 1.8 on Bandit 1.13 |
-| JSON | Jason 1.4 |
+| JSON | Elixir's built-in `JSON` (OTP's `:json` encoder) |
 | Postgres | Ecto SQL 3.14 + Postgrex 0.22 |
 | JWT | Joken 2.7 (HS256) |
 | bcrypt | bcrypt_elixir 3.3, cost 10 |
@@ -51,7 +51,10 @@ The queries are Ecto's, not SPEC.md's SQL strings, but they keep the reference S
   the page's `LIMIT`/`OFFSET` as parameters, Postgres never reuses a generic plan for the big article query (it
   can't bound the rows), so it planned it on every call: 0.56 ms of planning for 0.30 ms of execution for the
   global list. By id list it is planned once per connection. Interleaved at saturation (7,500 users): 8,132 →
-  8,564 req/s, p99 341 → 247 ms, 13% less Postgres CPU per request, for 1% more app CPU. The favorite count and the viewer's `favorited` and `following` are correlated subqueries in the select
+  8,564 req/s, p99 341 → 247 ms, 13% less Postgres CPU per request, for 1% more app CPU.
+- Responses are encoded with Elixir's built-in `JSON` (OTP's `:json`) instead of Jason (`config :phoenix,
+  :json_library, JSON`). String escaping was the largest single app cost in a profile at load; interleaved at
+  saturation (7,500 users) it took 8,447 → 8,679 req/s with 4% less app CPU per request, every run faster. The favorite count and the viewer's `favorited` and `following` are correlated subqueries in the select
   (`exists(subquery(...))` with `parent_as`), so they run once per article on the page.
 - The feed takes each followed author's newest `limit + offset` articles through a lateral join and merges them,
   so it walks `articles_author_idx` instead of sorting everything the followed authors ever wrote.

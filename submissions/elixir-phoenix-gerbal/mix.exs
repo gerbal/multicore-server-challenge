@@ -27,7 +27,6 @@ defmodule Conduit.MixProject do
       {:bandit, "~> 1.13"},
       {:ecto_sql, "~> 3.14"},
       {:postgrex, "~> 0.22"},
-      {:jason, "~> 1.4"},
       {:joken, "~> 2.7"},
       {:bcrypt_elixir, "~> 3.3"}
     ]
