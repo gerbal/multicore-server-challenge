@@ -1,0 +1,85 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 44K of event 'cpu/cycles/Pu'
+# Event count (approx.): 341261360730
+#
+# Overhead  Shared Object     Symbol                                                                                                                                      IPC   [IPC Coverage]
+# ........  ................  ..........................................................................................................................................  ....................
+#
+     7.08%  bcrypt_nif.so     [.] Blowfish_encipher                                                                                                                       -      -            
+     6.01%  beam.smp          [.] do_minor                                                                                                                                -      -            
+     2.66%  beam.smp          [.] aoff_get_free_block                                                                                                                     -      -            
+     2.54%  [JIT] tid 283627  [.] $global::i_get_map_element_hash_shared                                                                                                  -      -            
+     1.82%  beam.smp          [.] rbt_insert                                                                                                                              -      -            
+     1.55%  beam.smp          [.] sweep_new_heap                                                                                                                          -      -            
+     1.41%  beam.smp          [.] eq                                                                                                                                      -      -            
+     1.35%  beam.smp          [.] iolist_size_dispatch                                                                                                                    -      -            
+     1.32%  [JIT] tid 283627  [.] $global::call_light_bif_shared                                                                                                          -      -            
+     1.19%  beam.smp          [.] copy_shallow_x                                                                                                                          -      -            
+     1.13%  beam.smp          [.] make_internal_hash                                                                                                                      -      -            
+     1.12%  beam.smp          [.] do_binary_match_compile                                                                                                                 -      -            
+     1.06%  beam.smp          [.] scheduler_wait                                                                                                                          -      -            
+     1.01%  beam.smp          [.] hash_get                                                                                                                                -      -            
+     0.93%  beam.smp          [.] erts_ioq_iolist_vec_len                                                                                                                 -      -            
+     0.89%  beam.smp          [.] copy_struct_x                                                                                                                           -      -            
+     0.84%  beam.smp          [.] erts_ioq_iolist_to_vec                                                                                                                  -      -            
+     0.84%  beam.smp          [.] keyfind                                                                                                                                 -      -            
+     0.83%  beam.smp          [.] erts_maps_update                                                                                                                        -      -            
+     0.77%  [JIT] tid 283627  [.] $json:escape_binary_ascii/5                                                                                                             -      -            
+     0.74%  beam.smp          [.] mbc_free                                                                                                                                -      -            
+     0.68%  beam.smp          [.] sweep_off_heap                                                                                                                          -      -            
+     0.68%  beam.smp          [.] erts_schedule                                                                                                                           -      -            
+     0.68%  beam.smp          [.] erts_alcu_free_thr_pref                                                                                                                 -      -            
+     0.67%  beam.smp          [.] rbt_delete                                                                                                                              -      -            
+     0.65%  beam.smp          [.] erts_cmp_compound                                                                                                                       -      -            
+     0.61%  beam.smp          [.] full_sweep_heaps.isra.0                                                                                                                 -      -            
+     0.59%  beam.smp          [.] erts_alcu_alloc_thr_pref                                                                                                                -      -            
+     0.58%  [JIT] tid 283627  [.] $json:escape_binary/5                                                                                                                   -      -            
+     0.57%  [JIT] tid 283627  [.] $global::i_get_map_element_shared                                                                                                       -      -            
+     0.53%  beam.smp          [.] mbc_alloc                                                                                                                               -      -            
+     0.52%  beam.smp          [.] erts_gc_update_map_exact                                                                                                                -      -            
+     0.49%  beam.smp          [.] maps_merge_2                                                                                                                            -      -            
+     0.49%  [JIT] tid 283627  [.] $jose_base64url:'-decode!/2-lbc$^0/2-0-'/2                                                                                              -      -            
+     0.48%  beam.smp          [.] aoff_unlink_free_block                                                                                                                  -      -            
+     0.48%  beam.smp          [.] size_object_x                                                                                                                           -      -            
+     0.45%  [JIT] tid 283627  [.] $'Elixir.Enum':'-map/2-lists^map/1-1-'/2                                                                                                -      -            
+     0.40%  libc.so.6         [.] pthread_getspecific                                                                                                                     -      -            
+     0.40%  [JIT] tid 283627  [.] $'Elixir.Ecto.Query.Planner':merge_cache/6                                                                                              -      -            
+     0.40%  beam.smp          [.] erts_alcu_check_delayed_dealloc                                                                                                         -      -            
+     0.40%  beam.smp          [.] fixed_apply                                                                                                                             -      -            
+     0.37%  [JIT] tid 283627  [.] $'Elixir.Enum':'-reduce/3-lists^foldl/2-0-'/3                                                                                           -      -            
+     0.37%  [unknown]         [k] 0xffffffff952001c8                                                                                                                      -      -            
+     0.37%  beam.smp          [.] erts_maps_put                                                                                                                           -      -            
+     0.36%  bcrypt_nif.so     [.] Blowfish_expand0state                                                                                                                   -      -            
+     0.36%  [JIT] tid 283627  [.] $'Elixir.Ecto.Query.Planner':'-traverse_exprs/4-fun-0-'/3                                                                               -      -            
+     0.36%  beam.smp          [.] erts_bs_start_match_3                                                                                                                   -      -            
+     0.35%  beam.smp          [.] garbage_collect                                                                                                                         -      -            
+     0.34%  beam.smp          [.] handle_delayed_dealloc.constprop.0                                                                                                      -      -            
+     0.34%  beam.smp          [.] flatmap_from_validated_list                                                                                                             -      -            
+     0.31%  [JIT] tid 283627  [.] $'Elixir.JSON':protocol_encode/2                                                                                                        -      -            
+     0.31%  beam.smp          [.] atom_to_binary_2                                                                                                                        -      -            
+     0.30%  beam.smp          [.] list_to_binary_copy                                                                                                                     -      -            
+     0.28%  beam.smp          [.] aoff_link_free_block                                                                                                                    -      -            
+     0.28%  beam.smp          [.] handle_aux_work                                                                                                                         -      -            
+     0.28%  beam.smp          [.] offset_heap                                                                                                                             -      -            
+     0.27%  [JIT] tid 283627  [.] $'Elixir.Bandit.Headers':'field_value_valid?'/1                                                                                         -      -            
+     0.26%  [JIT] tid 283627  [.] $'Elixir.Enum':'-map_reduce/3-lists^mapfoldl/2-0-'/3                                                                                    -      -            
+     0.26%  beam.smp          [.] erts_bs_private_append_checked                                                                                                          -      -            
+     0.25%  [JIT] tid 283627  [.] $'Elixir.Ecto.Repo.Queryable':process/4                                                                                                 -      -            
+     0.23%  beam.smp          [.] rwmutex_freqread_rlock                                                                                                                  -      -            
+     0.23%  [JIT] tid 283627  [.] $'Elixir.Ecto.Repo.Queryable':'struct_load!'/6                                                                                          -      -            
+     0.23%  libc.so.6         [.] 0x0000000000189087                                                                                                                      -      -            
+     0.22%  [JIT] tid 283627  [.] $'Elixir.Conduit.PostgrexTypes':decode_rows/4                                                                                           -      -            
+     0.21%  beam.smp          [.] packet_parse_http                                                                                                                       -      -            
+     0.21%  beam.smp          [.] list_to_binary_size                                                                                                                     -      -            
+     0.21%  beam.smp          [.] ethr_rwmutex_runlock                                                                                                                    -      -            
+     0.21%  beam.smp          [.] erts_bs_get_binary_2                                                                                                                    -      -            
+     0.20%  beam.smp          [.] export_staged_cmp                                                                                                                       -      -            
+
+
+#
+# (Tip: System-wide collection from all CPUs: perf record -a)
+#

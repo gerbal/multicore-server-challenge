@@ -339,6 +339,36 @@ The latest profile, grouped by layer (`profile.sh` at 2,500 users): Ecto 18% (th
 10%, socket writes 7%, Postgrex/DBConnection 5%, Bandit + Plug + Phoenix 7%, bcrypt 4%, JWT 2%, timestamps 3%.
 What's left is the framework's per-call work; the dials are exhausted.
 
+### A perf profile at full load (`perf.sh`, 37,000 users, real pacing)
+
+`tprof` traces every call, so it only runs at 2,500 users and never sees the runtime's C code. `perf.sh` samples
+user space at 499 Hz per thread for 20 s of a normal `bench.sh` window (9,410 req/s, 0.456 ms app CPU; normal for
+this build) with the JIT's perf map, so Erlang and C share one profile. Text results in `data/session-2/perf-p1/`
+(`layers.txt`, `inclusive.txt`, `flat.txt`). Self time by layer, of 44,855 samples:
+
+| Layer | Self | Notes |
+|---|---:|---|
+| Runtime C: BIFs, maps, ETS, comparisons | 14.8% | `query_lookup`'s ETS key hash and compare alone ~1.4% |
+| Unattributed native (libc, `[unknown]`) | 15.0% | ~6% unresolved addresses |
+| Memory allocators | 10.2% | `aoff_get_free_block`, `rbt_insert`, `mbc_*`; from socket reads/sends, Postgrex messages, the per-request GC |
+| GC | 10.0% | `do_minor` 6%; triggered mostly while decoding rows (timestamps, text) and by Bandit's GC after each request |
+| bcrypt | 6.4% | Cost 10 is a rule |
+| Ecto (Erlang) | 6.3% | 37% inclusive; the planner (`Planner.query/6`) 11.5% inclusive, 8.3% of it planning subqueries |
+| Socket I/O (C) | 5.7% | iolist sizing and vectors for `port_command` |
+| JIT helpers (map lookups, BIF calls) | 5.5% | |
+| Elixir stdlib | 5.4% | mostly `Enum` on Ecto's behalf |
+| Scheduler | 4.0% | |
+| Message/term copying | 2.7% | `query_lookup` copying the cached query out of ETS 0.7%; `DBConnection.Holder` |
+| JSON | 2.6% | 5.1% inclusive |
+| Bandit, Phoenix, Plug, Postgrex, DBConnection, Joken, our code | 0.2-1.8% each | Joken verify 3.5% inclusive; `GET /api/tags` 6.4% inclusive for 200 tags |
+
+New against the `tprof` picture: about a fifth of the CPU is the runtime's memory management (allocators + GC), and
+Ecto's cache lookup costs real time in ETS hashing and copying, not only in the planner's walk. Candidates, all within
+the rules: allocator flags (`+M...` strategies and carrier sizes, a flags-only batch); fewer `subquery` expressions per
+article query (the viewer's `favorited`/`following` as left joins on the primary keys rather than `exists(subquery)`),
+which cuts the planner's per-call subquery planning; and nothing obvious for GC beyond the heap and GC-interval dials
+already measured (batches 11, 23, 25).
+
 ## Open questions, in the order I'd tackle them
 
 After session 2:
@@ -445,6 +475,7 @@ To get close to the benchmark box (8 vCPU, 16 GB, Ubuntu 24.04, Postgres 18):
 | `make-variant.sh` | Copies the submission to a scratch dir, applies patches, builds it, so variants never touch the tree |
 | `patches/experiment-switches.patch` | Env switches for experiments: `XPOOL_COUNT`, `XQ_TARGET`, `XQ_INTERVAL`, `XREPO_LOG`, `XPHX_LOG`, `XGC_EVERY`, `XLOG_EXC`, `XMIN_HEAP`, `XPG_REF` (`false` = default types), `XSIGNER=prebuilt`. Never commit it applied |
 | `profile.sh` + `prof.exs` | `tprof` call-time profile of the prod build under load |
+| `perf.sh` + `perf-layers.py` | Linux `perf` profile of one `bench.sh` run at full load, from a helper container (seccomp blocks `perf` in the bench container); flame graph, flat profile, per-layer and per-caller summaries. Needs the `localhost/perf-tools` image (a Fedora toolbox with `perf` and `js-d3-flame-graph`, `podman commit`ed) |
 | `idle-memory.sh` + `idle_conns.py` | Memory per idle keep-alive connection |
 | `port80.sh` | Binds port 80 as an unprivileged user with only the ambient capability, like `box/challenge.service` |
 | `data/session-1/` | Every result line and loadgen summary from this session (`results.txt` is the index) |

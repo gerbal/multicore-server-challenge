@@ -1,0 +1,120 @@
+ 78.96%  other Erlang           $erts_beamasm:normal_exit/0
+ 78.79%  Erlang stdlib/kernel   $proc_lib:init_p_do_apply/3
+ 76.05%  ThousandIsland         $'Elixir.ThousandIsland.Handler':invoke_callback/2
+ 75.93%  Bandit                 $'Elixir.Bandit.DelegatingHandler':handle_data/3
+ 73.99%  Erlang stdlib/kernel   $gen_server:handle_msg/3
+ 73.93%  Bandit                 $'Elixir.Bandit.HTTP1.Handler':handle_data/3
+ 73.72%  Erlang stdlib/kernel   $gen_server:try_handle_info/3
+ 73.72%  Bandit                 $'Elixir.Bandit.Pipeline':run/5
+ 71.84%  Bandit                 $'Elixir.Bandit.DelegatingHandler':handle_info/2
+ 68.55%  Bandit                 $'Elixir.Bandit.Pipeline':'call_plug!'/2
+ 68.51%  app (Conduit)          $'Elixir.ConduitWeb.Endpoint':call/2
+ 68.12%  app (Conduit)          $'Elixir.ConduitWeb.Endpoint':plug_builder_call/2
+ 63.97%  Phoenix                $'Elixir.Phoenix.Router':'__call__'/5
+ 36.81%  Ecto                   $'Elixir.Ecto.Repo.Queryable':all/3
+ 36.59%  Ecto                   $'Elixir.Ecto.Repo.Queryable':execute/4
+ 35.53%  app (Conduit)          $'Elixir.ConduitWeb.ArticleController':phoenix_controller_pipeline/2
+ 35.26%  app (Conduit)          $'Elixir.ConduitWeb.ArticleController':action/2
+ 28.28%  JIT runtime helpers    $global::call_light_bif_shared
+ 18.74%  Ecto                   $'Elixir.Ecto.Adapters.SQL':execute/6
+ 18.69%  Ecto                   $'Elixir.Ecto.Adapters.SQL':'execute!'/5
+ 18.44%  Ecto                   $'Elixir.Ecto.Adapters.Postgres.Connection':execute/4
+ 17.76%  app (Conduit)          $'Elixir.Conduit.Blog':list_page/4
+ 17.12%  DBConnection           $'Elixir.DBConnection':execute/4
+ 16.45%  DBConnection           $'Elixir.DBConnection':run_with_retries/5
+ 15.45%  libc / other native    [unknown]
+ 13.67%  app (Conduit)          $'Elixir.ConduitWeb.ArticleController':index/2
+ 13.64%  app (Conduit)          $'Elixir.Conduit.Blog':list_articles/2
+ 12.88%  GC (C)                 garbage_collect
+ 12.69%  Elixir stdlib          $'Elixir.Enum':'-map/2-lists^map/1-1-'/2
+ 12.16%  DBConnection           $'Elixir.DBConnection':run_execute/5
+ 11.47%  Ecto                   $'Elixir.Ecto.Query.Planner':query/6
+ 11.39%  Ecto                   $'Elixir.Ecto.Query.Planner':plan/4
+ 11.31%  DBConnection           $'Elixir.DBConnection.Holder':holder_apply/4
+ 10.60%  app (Conduit)          $'Elixir.ConduitWeb.CommentController':phoenix_controller_pipeline/2
+ 10.51%  app (Conduit)          $'Elixir.ConduitWeb.CommentController':action/2
+ 10.43%  GC (C)                 erts_garbage_collect_nobump
+ 10.02%  GC (C)                 do_minor
+  9.62%  JIT runtime helpers    $global::garbage_collect
+  9.51%  Ecto                   $'Elixir.Ecto.Repo.Queryable':one/3
+  9.37%  Postgrex               $'Elixir.Postgrex.Protocol':bind_execute/4
+  8.49%  Phoenix                $'Elixir.Phoenix.Controller':render_and_send/4
+  8.34%  Ecto                   $'Elixir.Ecto.Query.Planner':plan_subquery/6
+  7.63%  telemetry              $telemetry:span/3
+  7.30%  app (Conduit)          $'Elixir.ConduitWeb.ArticleController':show/2
+  7.29%  app (Conduit)          $'Elixir.Conduit.Blog':get_article/2
+  7.29%  Phoenix                $'Elixir.Phoenix.Controller':'-template_render_to_iodata/4-fun-0-'/5
+  7.01%  Elixir stdlib          $'Elixir.Enum':'-reduce/3-lists^foldl/2-0-'/3
+  6.87%  Plug                   $'Elixir.Plug.Conn':send_resp/1
+  6.43%  app (Conduit)          $'Elixir.ConduitWeb.TagController':action/2
+  6.37%  app (Conduit)          $'Elixir.ConduitWeb.TagController':phoenix_controller_pipeline/2
+  6.26%  JIT runtime helpers    $global::process_main
+  6.21%  Bandit                 $'Elixir.Bandit.Adapter':send_resp/4
+  6.20%  Ecto                   $'Elixir.Ecto.Query.Planner':plan_sources/3
+  6.14%  app (Conduit)          $'Elixir.ConduitWeb.Router':'__pipe_through2__'/1
+  6.10%  app (Conduit)          $'Elixir.ConduitWeb.CommentController':index/2
+  6.08%  app (Conduit)          $'Elixir.Conduit.Blog':list_comments/2
+  5.98%  bcrypt (NIF)           Blowfish_encipher
+  5.97%  scheduler (C)          erts_schedule
+  5.74%  app (Conduit)          $'Elixir.ConduitWeb.Plugs.Authenticate':call/2
+  5.62%  app (Conduit)          $'Elixir.Conduit.Accounts.Token':fetch_user_id/1
+  5.47%  Ecto                   $'Elixir.Ecto.Query.Planner':plan_expr_subquery/3
+  5.44%  memory allocators (C)  erts_alcu_alloc_thr_pref
+  4.92%  app (Conduit)          $'Elixir.ConduitWeb.Router':optional_auth/2
+  4.77%  app (Conduit)          $'Elixir.ConduitWeb.ArticleController':feed/2
+  4.76%  app (Conduit)          $'Elixir.Conduit.Blog':feed/2
+  4.67%  Postgrex               $'Elixir.Postgrex.Protocol':recv_execute/5
+  4.56%  Erlang stdlib/kernel   $gen_server:loop/4
+  4.55%  Erlang stdlib/kernel   $gen_server:try_handle_continue/3
+  4.48%  Bandit                 $'Elixir.Bandit.DelegatingHandler':handle_continue/2
+  4.29%  Bandit                 $'Elixir.Bandit.Adapter':send_data/3
+  4.28%  Erlang stdlib/kernel   $prim_inet:send/4
+  4.26%  JSON                   $'Elixir.JSON.Encoder.Map':encode/2
+  4.00%  Ecto                   $'Elixir.Ecto.Query.Planner':plan_source/4
+  3.92%  app (Conduit)          $'Elixir.ConduitWeb.TagController':index/2
+  3.89%  Erlang stdlib/kernel   $erlang:port_command/3
+  3.86%  Postgrex               $'Elixir.Postgrex.Protocol':rows_recv/4
+  3.79%  JSON                   $json:do_encode_list/2
+  3.60%  Ecto                   $'Elixir.Ecto.Query.Planner':plan_cache/3
+  3.58%  JSON                   $json:list_loop/2
+  3.56%  Bandit                 $'Elixir.Bandit.HTTPTransport.Bandit.HTTP1.Socket':send_data/3
+  3.53%  Ecto                   $'Elixir.Ecto.Query.Planner':traverse_cache/4
+  3.52%  Joken/JOSE/crypto      $'Elixir.Joken':verify_and_validate/5
+  3.52%  libc / other native    ets_lookup_2
+  3.50%  Bandit                 $'Elixir.Bandit.HTTPTransport.Bandit.HTTP1.Socket':'send!'/2
+  3.42%  Joken/JOSE/crypto      $'Elixir.Joken':verify/3
+  3.40%  ThousandIsland         $'Elixir.ThousandIsland.Socket':send/2
+  3.38%  memory allocators (C)  aoff_get_free_block
+  3.31%  socket I/O (C)         erts_internal_port_command_3
+  3.27%  Joken/JOSE/crypto      $'Elixir.Joken.Signer':verify/2
+  3.25%  Elixir stdlib          $'Elixir.Enum':'-map_reduce/3-lists^mapfoldl/2-0-'/3
+  3.22%  Joken/JOSE/crypto      $'Elixir.JOSE.JWT':verify_strict/3
+  3.19%  Joken/JOSE/crypto      $jose_jwt:verify_strict/3
+  3.12%  Ecto                   $'Elixir.Ecto.Query.Planner':plan_joins/9
+  3.01%  Ecto                   $'Elixir.Ecto.Query.Planner':normalize_subquery_select/3
+  2.95%  Bandit                 $'Elixir.Bandit.HTTPTransport.Bandit.HTTP1.Socket':read_headers/1
+  2.95%  DBConnection           $'Elixir.DBConnection':checkout/3
+  2.92%  memory allocators (C)  mbc_alloc
+  2.86%  Ecto                   $'Elixir.Ecto.Query.Planner':'-traverse_exprs/4-fun-0-'/3
+  2.79%  BIFs and runtime (C)   db_get_hash
+  2.74%  JSON                   $'Elixir.JSON.Encoder.Map':next/2
+  2.71%  DBConnection           $'Elixir.DBConnection.Holder':checkout/3
+  2.70%  socket I/O (C)         erts_port_output
+  2.68%  Joken/JOSE/crypto      $jose_jws:verify_strict/3
+  2.65%  Phoenix                $'Elixir.Phoenix.Template':render_to_iodata/4
+  2.57%  memory allocators (C)  mbc_free
+  2.55%  JIT runtime helpers    $global::i_get_map_element_hash_shared
+  2.49%  Ecto                   $'Elixir.Ecto.Query.Planner':query_with_cache/8
+  2.45%  memory allocators (C)  erts_alcu_free_thr_pref
+  2.44%  Ecto                   $'Elixir.Ecto.Query.Planner':query_lookup/6
+  2.43%  Ecto                   $'Elixir.Ecto.Repo.Queryable':process/4
+  2.26%  JIT runtime helpers    $global::call_bif_shared
+  2.21%  Ecto                   $'Elixir.Ecto.Query.Planner':'-traverse_cache/4-fun-0-'/6
+  2.20%  Postgrex               $'Elixir.Postgrex.Protocol':do_send/3
+  2.20%  BIFs and runtime (C)   beam_jit_call_bif(process*, unsigned long*, void const*, unsigned long (*)(process*, unsigned long*, void const*), unsigned long)
+  2.18%  DBConnection           $'Elixir.DBConnection.Holder':checkout_call/5
+  2.10%  BIFs and runtime (C)   maybe_binary_match_compile
+  2.09%  Ecto                   $'Elixir.Ecto.Query.Planner':merge_cache/6
+  2.08%  memory allocators (C)  aoff_link_free_block
+  2.05%  BIFs and runtime (C)   binary_match
+  2.00%  BIFs and runtime (C)   do_binary_match_compile
