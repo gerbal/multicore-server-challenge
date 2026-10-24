@@ -22,10 +22,12 @@ defmodule Conduit.Blog do
   @count_cap 1000
   @max_comments 100
 
-  # Lists leave out the body, which only a single article shows, and authors leave out email and password hash.
+  # Lists leave out the body, which only a single article shows, authors leave out email and password hash, and
+  # comments leave out their article and author ids.
   @summary_fields [:id, :slug, :title, :description, :author_id, :created_at, :updated_at]
   @article_fields [:body | @summary_fields]
   @author_fields [:id, :username, :bio, :image]
+  @comment_fields [:id, :body, :created_at, :updated_at]
 
   ## Article lists
 
@@ -281,7 +283,8 @@ defmodule Conduit.Blog do
       from c in Comment,
         where: c.article_id == parent_as(:article).id,
         order_by: [desc: c.created_at, desc: c.id],
-        limit: @max_comments
+        limit: @max_comments,
+        select: struct(c, [:author_id | @comment_fields])
 
     # One statement: the article by slug, left-joined to its newest comments, so an article without comments is still
     # a row (with a nil comment) and an unknown slug is no row at all.
@@ -296,7 +299,7 @@ defmodule Conduit.Blog do
         left_join: fo in Follow,
         on: fo.followee_id == u.id and fo.follower_id == ^(viewer_id || 0),
         order_by: [desc: c.created_at, desc: c.id],
-        select: {c, struct(u, @author_fields), not is_nil(fo.follower_id)}
+        select: {struct(c, @comment_fields), struct(u, @author_fields), not is_nil(fo.follower_id)}
 
     case Repo.all(query) do
       [] ->

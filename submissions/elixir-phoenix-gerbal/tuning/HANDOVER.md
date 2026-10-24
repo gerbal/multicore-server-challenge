@@ -339,6 +339,7 @@ Postgres 0.33-0.34 vs its 0.33. Postgres is at parity; the remaining gap is the 
 | 30 | From the second profile: the list's ids query without its `subquery(page)` wrapper (`flat`); `+IOt 2`, `+spp true`, `+sub true`, `pool_count: 2` × 12 | 38,000 | all within ~1% of base (9,852 req/s, app 0.429 ms): noise. `flat` kept as a simplification (same Postgres plans) |
 | 31 | From a perf profile of Postgres: tag names by primary key through a lateral join (`tags`), vs base and flat | 38,000 | base 9,937 req/s, app 0.424, pg 0.324 ms, p95 104 ms; tags 10,055 / 0.430 / **0.272** / **11 ms**: **shipped**. The plain join hashed a scan of all 200 tags per article (pgbench 0.36 → 0.23 ms per page statement) |
 | 32 | `+S 5:5` / `6:6` / `7:7` now that Postgres needs ~2.9 cores | 41,000 | 10,739 / 10,735 / 10,779 req/s: noise; app CPU per request 0.416 / 0.426 / 0.428 ms, so 5:5 stays |
+| 33 | Hold-shaped (60 s + 300 s, compared on the last 60 s with `late.py`): comment columns trimmed (`cols`), connection heap 6,765 / 10,946 words | 41,000 | late p95 base 500 ms, cols 449, heap6765 523, heap10946 488; app CPU 0.432 / 0.429 / 0.434 / 0.422 ms; peak RSS 2.77 / 2.74 / 3.41 / **4.60 GB**. cols shipped (fewer columns, no downside); the bigger heaps' memory isn't worth it |
 
 **Held score of `60e6e88` on this rig: 37,000** (probe at 39,000 failed on p95; 300 s hold at 37,000 passed,
 p95 457 ms, p99 633 ms, 0% errors, 9,221 req/s). With the calibration above (box ≈ 0.78 × rig), **≈ 29,000 on
@@ -535,6 +536,7 @@ To get close to the benchmark box (8 vCPU, 16 GB, Ubuntu 24.04, Postgres 18):
 | `patches/experiment-switches.patch` | Env switches for experiments: `XPOOL_COUNT`, `XQ_TARGET`, `XQ_INTERVAL`, `XREPO_LOG`, `XPHX_LOG`, `XGC_EVERY`, `XLOG_EXC`, `XMIN_HEAP`, `XPG_REF` (`false` = default types), `XSIGNER=prebuilt`. Never commit it applied |
 | `profile.sh` + `prof.exs` | `tprof` call-time profile of the prod build under load |
 | `hold-watch.sh` + `hold-watch.py` | One `bench.sh` run (a hold by default) with BEAM/Postgres CPU, RSS and per-table stats sampled every 5 s, joined with the loadgen's timeline: what changes as a hold degrades |
+| `late.py` | Compares configs by the last N seconds of their measured windows (from the loadgen timeline), where a hold is decided |
 | `search.sh` | The scoring search's probe/bisect/hold shape from a starting guess, through `bench.sh`; prints the held score |
 | `perf.sh` + `perf-layers.py` | Linux `perf` profile of one `bench.sh` run at full load, from a helper container (seccomp blocks `perf` in the bench container); flame graph, flat profile, per-layer and per-caller summaries. Needs the `localhost/perf-tools` image (a Fedora toolbox with `perf` and `js-d3-flame-graph`, `podman commit`ed) |
 | `idle-memory.sh` + `idle_conns.py` | Memory per idle keep-alive connection |
