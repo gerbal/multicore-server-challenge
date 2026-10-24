@@ -33,7 +33,8 @@ front, so this submission does too.
 | `3578003` | This `tuning/` folder (draft handover) |
 | `81ffe73` | Tag names aggregated inside the article query |
 | `73caebb`, `33896c9` | Handover finished; session 1 data |
-| session 2's commit | Select only the columns the JSON sends; `bench.sh` CPU pinning; session 2 data and this update |
+| `b4cdc35` | Select only the columns the JSON sends; `bench.sh` CPU pinning; session 2 data and this update |
+| the next commit | Ecto `queue_target` 200 ms, from the real-pacing holds below |
 
 ### What the shipped config sets, and why
 
@@ -44,6 +45,7 @@ front, so this submission does too.
 | Listen backlog 8,192 | `runtime.exs` | Cheap headroom for direct connection bursts; the box's `somaxconn` is 65,535. Not load-tested |
 | GC after every keep-alive request | `runtime.exs` | Memory: 80 → 14 KB per idle connection (15,000 idle connections). CPU cost: see batch 4 below |
 | `read_timeout` 75 s | `runtime.exs` | Longer than the workload's 70 s maximum think time, so the server never closes a thinking user |
+| Ecto `queue_target` 200 ms | `runtime.exs` | Strong at real pacing: batch 8 (session 2). The default sheds queries as 500s at saturation |
 | Pool 10 per core, capped at 90 | `start.sh` | Matches the Go example. Locally 40 beat 20 and 10 at saturation (below); unconfirmed on 8 cores |
 | Tag names in the article query | `Conduit.Blog` | Strong: see batch 4. One round trip and Ecto's preloader removed per article list/page |
 | Only the columns the JSON sends | `Conduit.Blog` | Strong: batch 6 (session 2). Lists skip `body`, authors skip `email`/`password_hash` |
@@ -160,12 +162,52 @@ articles and comments load `[:id, :username, :bio, :image]`.
 than `jit_above_cost` (848k vs 100k), and the plan cache never picks it because the custom plans cost 31 (plain
 list) to 382 (tag list) at the loadgen's offsets (0-40). `jit: "off"` would change nothing.
 
+### Real pacing (`THINK_SCALE=1`), the search's probe and hold shapes
+
+Probes are 60 s ramp + 60 s measured, holds 60 s ramp + 300 s measured, like `loadgen search`; tail 15 s. Peak BEAM
+RSS and established connections were sampled every 2 s (`/srv/rss-watch.sh` in the container; not committed).
+
+Knee of the build with the column change (single probe runs):
+
+| Users | req/s | p95 | p99 | Errors | BEAM peak RSS | Peak connections |
+|---:|---:|---:|---:|---:|---:|---:|
+| 15,000 | 3,974 | 3.7 ms | 6.0 ms | 0% | 555 MB | 15,000 |
+| 22,000 | 5,830 | 7.2 ms | 12 ms | 0% | 694 MB | 22,000 |
+| 26,000 | 6,856 | 36 ms | 73 ms | 0% | 812 MB | 26,000 |
+| 30,000 | 7,580 | 261 ms | 346 ms | 30% ✗ | 1,168 MB | 25,996 |
+
+Same ~7,000 req/s ceiling as at `THINK_SCALE=0.2`: real pacing adds no new bottleneck. Each user costs ~23 KB
+(far below the box's 16 GB), every user got its own connection, and nothing was LG-limited. The 30k failure is all
+HTTP 500s from DBConnection shedding queries that waited past the 50 ms `queue_target`; each 500 also cost the
+user its connection (188,065 TCP connects for 30,000 users).
+
+Batch 7, probes at 28,000 users, interleaved, 2 runs each:
+
+| Config | req/s | p95 | p99 | Errors |
+|---|---:|---:|---:|---:|
+| shipped (`queue_target` 50 ms) | 7,130 | 232 ms | 324 ms | 5.28% ✗ (6.95 / 3.61) |
+| `queue_target` 200 ms | 7,068 | 349 ms | 435 ms | 0% |
+| `queue_target` 500 ms | 7,033 | 384 ms | 472 ms | 0% |
+
+The probe win doesn't survive a hold at 28k: 200 ms failed a 300 s hold there on latency (p95 535 ms, 0% errors),
+while shipped passed a 300 s hold at 26k (p95 66 ms). So batch 8 compared holds at 27,000 users:
+
+| Config (300 s holds) | req/s | p95 | p99 | Errors | Verdicts |
+|---|---:|---:|---:|---:|---|
+| shipped | 6,914 | 224 ms | 312 ms | 3.05% | FAIL (1.50%), FAIL (4.60%) |
+| **`queue_target` 200 ms** | **6,765** | **409 ms** | **526 ms** | **0%** | **PASS, PASS** |
+
+**Shipped**: the highest passing hold moves from 26k to 27k (+4%, inside the search's 5% resolution but the same in
+both runs). It only changes behaviour when the pool is saturated. 500 ms was not held-tested; it would have less
+latency headroom.
+
 ## Open questions, in the order I'd tackle them
 
-After session 2 (questions 1-4, 6 and 7 below are done or settled; see above):
+After session 2 (questions 1-7 below are done or settled; see above):
 
-- **Real direct-mode scale** (question 5) is now the biggest unknown and needs no new host: `THINK_SCALE=1` with
-  tens of thousands of users. The container has a 1,048,576 file limit and `somaxconn` 65,535.
+- **The overload cliff.** From 26k to 30k users errors go 0% → 30%, and every 500 closes the user's connection,
+  so the load turns into a reconnect storm. Prod logs at `:warning`, so each shed query also writes a ~20-line
+  error with a stack trace (6,743 of them at 30k): cost of logging under overload is worth measuring.
 - **CPU per request is what's left.** Profile at saturation on the 8-thread setup (`profile.sh`) before guessing.
   Candidates: the per-article correlated subqueries (favorite count, `favorited`, `following`) vs one aggregate
   join, and `GET /api/articles/:slug/comments` (the most frequent request with the article lookup) as one query

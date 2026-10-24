@@ -5,7 +5,10 @@ if config_env() == :prod do
 
   config :conduit, Conduit.Repo,
     url: fetch_env!.("DATABASE_URL"),
-    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10"))
+    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
+    # At saturation, let a query wait up to 200 ms for a connection (DBConnection's default is 50 ms) before the
+    # pool starts shedding: latency has headroom under the 500 ms p95 limit, while every shed query is a 500.
+    queue_target: 200
 
   config :joken, default_signer: fetch_env!.("JWT_SECRET")
 

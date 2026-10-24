@@ -1,14 +1,13 @@
---- a/config/runtime.exs	2026-10-23 23:13:32.000000000 +0000
-+++ b/config/runtime.exs	2026-10-23 23:24:28.144557093 +0000
-@@ -5,7 +5,14 @@
- 
-   config :conduit, Conduit.Repo,
-     url: fetch_env!.("DATABASE_URL"),
--    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10"))
-+    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
+--- a/config/runtime.exs	2026-10-23 22:07:03.266087288 -0400
++++ b/config/runtime.exs	2026-10-23 22:07:03.277053981 -0400
+@@ -8,7 +8,13 @@
+     pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
+     # At saturation, let a query wait up to 200 ms for a connection (DBConnection's default is 50 ms) before the
+     # pool starts shedding: latency has headroom under the 500 ms p95 limit, while every shed query is a 500.
+-    queue_target: 200
 +    # EXPERIMENT SWITCHES (tuning/patches/experiment-switches.patch; scratch copies only, never committed)
++    queue_target: String.to_integer(System.get_env("XQ_TARGET", "200")),
 +    pool_count: String.to_integer(System.get_env("XPOOL_COUNT", "1")),
-+    queue_target: String.to_integer(System.get_env("XQ_TARGET", "50")),
 +    queue_interval: String.to_integer(System.get_env("XQ_INTERVAL", "2000")),
 +    log: if(System.get_env("XREPO_LOG") == "false", do: false, else: :debug)
 +
@@ -16,7 +15,7 @@
  
    config :joken, default_signer: fetch_env!.("JWT_SECRET")
  
-@@ -21,7 +28,7 @@
+@@ -24,7 +30,7 @@
        http_options: [compress: false],
        # Collect each connection's garbage after every request (Bandit's default is every 5th), so a user who is
        # thinking between pages doesn't hold on to the heap their last request built.

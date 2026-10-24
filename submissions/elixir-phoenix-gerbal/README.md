@@ -80,6 +80,11 @@ Serving directly means one keep-alive connection per user, tens of thousands of 
   generator shared the cores; dev seed, think time scaled to 0.2, two interleaved runs each, 1,700 users) turning it
   off gave 1,816 → 2,026 req/s, p95 317 → 193 ms, p99 424 → 268 ms and errors 1.14% → 0%, with 15% less app CPU per
   request.
+- Ecto's `queue_target` is 200 ms (DBConnection's default is 50 ms). At saturation a query then waits for a
+  connection instead of being shed as a 500, which the error limit punishes long before the latency limit. In local
+  300 s holds at real pacing (full seed, app + Postgres pinned to 8 threads, 27,000 users), the default failed both
+  runs on errors (1.5%, 4.6%) and 200 ms passed both (0% errors, p95 409 ms). Below saturation the pool never queues
+  that long, so nothing changes there.
 - `limit` and `offset` must be plain digits (`Conduit.Types.PlainInteger`); Ecto's `:integer` would also take `+5`.
 - Logger level `:warning` in prod.
 
