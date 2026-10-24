@@ -9,6 +9,7 @@ defmodule Conduit.Blog do
   import Ecto.Changeset
   import Ecto.Query
 
+  alias Conduit.Accounts.User
   alias Conduit.Blog.{Article, Comment, Favorite, Tag}
   alias Conduit.Profiles
   alias Conduit.Profiles.Follow
@@ -36,8 +37,8 @@ defmodule Conduit.Blog do
           {:ok, %{articles: [Article.t()], count: non_neg_integer()}} | {:error, Ecto.Changeset.t()}
   def list_articles(params, viewer_id) do
     with {:ok, opts} <- list_options(params) do
-      query = opts |> filter() |> filter_query()
-      {:ok, %{articles: list_page(query, opts, viewer_id), count: capped_count(query)}}
+      ids = opts |> filter() |> matching_ids() |> subquery()
+      {:ok, %{articles: list_page(ids, opts, viewer_id), count: capped_count(ids)}}
     end
   end
 
@@ -67,7 +68,7 @@ defmodule Conduit.Blog do
           select: a.id
 
       followees = from f in Follow, where: f.follower_id == ^viewer_id, select: f.followee_id
-      count = capped_count(from a in Article, where: a.author_id in subquery(followees))
+      count = capped_count(from a in Article, where: a.author_id in subquery(followees), select: %{id: a.id})
 
       {:ok, %{articles: load_page(page_ids, viewer_id), count: count}}
     end
@@ -94,31 +95,29 @@ defmodule Conduit.Blog do
     end)
   end
 
-  defp filter_query(nil), do: Article
+  # The ids of the articles a filter matches, read from the narrowest index: a tag's or a user's favorites' entries
+  # in their join table walk (tag_id, article_id) and (user_id, article_id) newest first, without joining `articles`.
+  # An unknown tag or username matches nothing.
+  defp matching_ids(nil), do: from(a in Article, select: %{id: a.id})
 
-  defp filter_query({:tag, name}) do
-    from a in Article, join: t in assoc(a, :tags), where: t.name == ^name
+  defp matching_ids({:tag, name}) do
+    tag_id = from t in Tag, where: t.name == ^name, select: t.id
+    from at in "article_tags", where: at.tag_id == subquery(tag_id), select: %{id: at.article_id}
   end
 
-  defp filter_query({:author, username}) do
-    from a in Article, join: u in assoc(a, :author), where: u.username == ^username
+  defp matching_ids({:author, username}) do
+    from a in Article, where: a.author_id == subquery(user_id(username)), select: %{id: a.id}
   end
 
-  defp filter_query({:favorited, username}) do
-    from a in Article,
-      join: f in Favorite,
-      on: f.article_id == a.id,
-      join: u in assoc(f, :user),
-      where: u.username == ^username
+  defp matching_ids({:favorited, username}) do
+    from f in Favorite, where: f.user_id == subquery(user_id(username)), select: %{id: f.article_id}
   end
 
-  defp list_page(query, %{limit: limit, offset: offset}, viewer_id) do
-    query
-    |> order_by([a], desc: a.id)
-    |> limit(^limit)
-    |> offset(^offset)
-    |> select([a], a.id)
-    |> load_page(viewer_id)
+  defp user_id(username), do: from(u in User, where: u.username == ^username, select: u.id)
+
+  defp list_page(ids, %{limit: limit, offset: offset}, viewer_id) do
+    page_ids = from i in ids, order_by: [desc: i.id], limit: ^limit, offset: ^offset, select: i.id
+    load_page(page_ids, viewer_id)
   end
 
   # Lists pick a page of ids first and then load just those articles, so the per-article subqueries for counts and
@@ -128,9 +127,8 @@ defmodule Conduit.Blog do
     Repo.all(from a in query, where: a.id in subquery(page_ids), order_by: [desc: a.id])
   end
 
-  defp capped_count(query) do
-    query
-    |> select([a], %{id: a.id})
+  defp capped_count(ids) do
+    ids
     |> limit(@count_cap)
     |> subquery()
     |> Repo.aggregate(:count)

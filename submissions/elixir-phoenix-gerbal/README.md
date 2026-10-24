@@ -41,8 +41,12 @@ schemaless changeset. Changeset errors become RealWorld's `{"errors": {"body": [
 
 The queries are Ecto's, not SPEC.md's SQL strings, but they keep the reference SQL's shape and results:
 
-- Lists choose a page of ids first (by tag, author or favoriting user through joins, newest first), then load that
-  page. The favorite count and the viewer's `favorited` and `following` are correlated subqueries in the select
+- Lists choose a page of ids first, newest first, from the narrowest index for the filter, then load that page. A
+  tag's entries in `article_tags` and a user's in `favorites` are walked directly (`(tag_id, article_id)`,
+  `(user_id, article_id)`), with the tag or user id as a scalar subquery, like the reference SQL, rather than joining
+  through `articles`. On the full seed that made a popular tag's page ids 4x and its capped count 5x cheaper in
+  Postgres, and in interleaved runs (6,000 users, 8 threads) Postgres CPU per request fell 21% (0.549 → 0.435 ms);
+  the box stopped saturating at that load (7,364 → 7,888 req/s, p95 115 → 19 ms). The favorite count and the viewer's `favorited` and `following` are correlated subqueries in the select
   (`exists(subquery(...))` with `parent_as`), so they run once per article on the page.
 - The feed takes each followed author's newest `limit + offset` articles through a lateral join and merges them,
   so it walks `articles_author_idx` instead of sorting everything the followed authors ever wrote.
