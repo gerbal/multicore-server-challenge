@@ -7,14 +7,19 @@ defmodule Conduit.Accounts.Token do
   """
   use Joken.Config
 
+  alias Conduit.Types.PlainInteger
+
   @ttl 30 * 24 * 60 * 60
 
   @impl Joken.Config
   def token_config do
     [skip: [:aud, :iss, :jti, :nbf], default_exp: @ttl]
     |> default_claims()
-    |> add_claim("sub", nil, &(is_binary(&1) and &1 =~ ~r/\A[0-9]{1,18}\z/))
+    |> add_claim("sub", nil, &valid_sub?/1)
   end
+
+  # Checked on every authenticated request, so without a regex (see `Conduit.Types.PlainInteger`).
+  defp valid_sub?(sub), do: is_binary(sub) and match?({:ok, id} when id > 0, PlainInteger.cast(sub))
 
   @doc "Signs a fresh token for `user_id`."
   @spec sign(pos_integer()) :: String.t()
@@ -30,11 +35,9 @@ defmodule Conduit.Accounts.Token do
   """
   @spec fetch_user_id(String.t()) :: {:ok, pos_integer()} | :error
   def fetch_user_id(token) do
-    with {:ok, %{"sub" => sub, "exp" => _exp}} <- verify_and_validate(token),
-         user_id when user_id > 0 <- String.to_integer(sub) do
-      {:ok, user_id}
-    else
-      _ -> :error
+    case verify_and_validate(token) do
+      {:ok, %{"sub" => sub, "exp" => _exp}} -> {:ok, String.to_integer(sub)}
+      _invalid -> :error
     end
   end
 end

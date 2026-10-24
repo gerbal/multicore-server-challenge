@@ -14,16 +14,20 @@ defmodule Conduit.Types.PlainInteger do
   @impl Ecto.Type
   def cast(value) when is_integer(value) and value in 0..@max, do: {:ok, value}
 
-  def cast(value) when is_binary(value) do
-    with true <- value =~ ~r/\A[0-9]+\z/,
-         n when n <= @max <- String.to_integer(value) do
-      {:ok, n}
-    else
-      _ -> :error
-    end
+  def cast(value) when is_binary(value) and value != "" do
+    if digits?(value), do: in_range(String.to_integer(value)), else: :error
   end
 
   def cast(_value), do: :error
+
+  # Matched byte by byte: a regex literal is recompiled on every call on OTP 28 and later, which made casting a page's
+  # `limit` about ten times slower.
+  defp digits?(<<digit, rest::binary>>) when digit in ?0..?9, do: digits?(rest)
+  defp digits?(<<>>), do: true
+  defp digits?(_value), do: false
+
+  defp in_range(n) when n <= @max, do: {:ok, n}
+  defp in_range(_n), do: :error
 
   @impl Ecto.Type
   def load(value), do: {:ok, value}

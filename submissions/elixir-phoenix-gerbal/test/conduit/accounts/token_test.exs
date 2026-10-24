@@ -41,10 +41,12 @@ defmodule Conduit.Accounts.TokenTest do
     assert :error = Token.fetch_user_id(sign(%{"sub" => "7", "iat" => now()}))
   end
 
-  test "rejects a sub that isn't a positive decimal string" do
-    for sub <- [7, "abc", "+7", "0", nil] do
+  test "rejects a sub that is missing or isn't a positive decimal string" do
+    for sub <- [7, "abc", "+7", "7\n", "0", "", "99999999999999999999", nil] do
       assert :error = Token.fetch_user_id(sign(%{"sub" => sub, "iat" => now(), "exp" => now() + 60})), inspect(sub)
     end
+
+    assert :error = Token.fetch_user_id(sign(%{"iat" => now(), "exp" => now() + 60}))
   end
 
   test "rejects garbage" do

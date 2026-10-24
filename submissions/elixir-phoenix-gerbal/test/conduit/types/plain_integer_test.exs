@@ -11,7 +11,23 @@ defmodule Conduit.Types.PlainIntegerTest do
   end
 
   test "rejects signs, spaces, decimals and anything too big for a bigint" do
-    for value <- ["+5", "-5", " 5", "5 ", "5.0", "", "abc", "9223372036854775808", -1, 1.5, nil] do
+    for value <- [
+          "+5",
+          "-5",
+          " 5",
+          "5 ",
+          "5\n",
+          "5a",
+          "1_000",
+          "٥",
+          "5.0",
+          "",
+          "abc",
+          "9223372036854775808",
+          -1,
+          1.5,
+          nil
+        ] do
       assert :error = PlainInteger.cast(value), "expected #{inspect(value)} to be rejected"
     end
   end
