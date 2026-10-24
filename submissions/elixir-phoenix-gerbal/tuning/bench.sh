@@ -18,6 +18,8 @@
 #   THINK_SCALE  loadgen -think-scale (default 0.2: each user makes ~5x a real user's requests; use 1 for real pacing)
 #   RAMP MEASURE TAIL  seconds (default 15, 30, 5); WARMUP_USERS (default 300)
 #   PORT         server port (default 3110); PGHOST PGPORT PGUSER PGPASSWORD for a Postgres superuser
+#   APP_CPUS LG_CPUS  taskset CPU lists for the server and the load generator (default: unpinned). Pin Postgres
+#                to the same CPUs as the server yourself (start it under taskset) to mimic the 8-vCPU box.
 #
 # Caution: never pass the loadgen `-out /dev/null`. It writes results via a rename, which as root replaces the
 # /dev/null device with a regular file.
@@ -39,6 +41,10 @@ LG=${LG:-$OUT/loadgen}
 [ -x "$LG" ] || (cd "$REPO/bench" && go build -o "$LG" ./cmd/loadgen) || { echo "cannot build loadgen"; exit 1; }
 [ -x "$APP/_build/prod/rel/conduit/bin/conduit" ] || { echo "no release in $APP: run $APP/build.sh"; exit 1; }
 
+app_pin=() lg_pin=()
+[ -n "${APP_CPUS:-}" ] && app_pin=(taskset -c "$APP_CPUS")
+[ -n "${LG_CPUS:-}" ] && lg_pin=(taskset -c "$LG_CPUS")
+
 HZ=$(getconf CLK_TCK)
 ticks() { local t=0 s; for p in $(pgrep -f "$1"); do s=$(cut -d' ' -f14,15 /proc/$p/stat 2>/dev/null) && t=$((t + ${s% *} + ${s#* })); done; echo $t; }
 stop_app() { pkill -f "$APP/_build/prod/rel/conduit/erts"; sleep 1; }
@@ -48,11 +54,11 @@ psql -X -q -d postgres -c "DROP DATABASE IF EXISTS conduit_lg WITH (FORCE)" \
   -c "CREATE DATABASE conduit_lg TEMPLATE $TEMPLATE STRATEGY FILE_COPY" || { echo "cannot create database"; exit 1; }
 
 DATABASE_URL=postgres://conduit:conduit@127.0.0.1:5432/conduit_lg JWT_SECRET=dev-secret HOST=127.0.0.1 PORT=$PORT \
-  bash "$APP/start.sh" > "$OUT/server-$label.log" 2>&1 &
+  "${app_pin[@]}" bash "$APP/start.sh" > "$OUT/server-$label.log" 2>&1 &
 for _ in $(seq 120); do curl -sf -o /dev/null "http://127.0.0.1:$PORT/api/tags" && break; sleep 0.5; done
 curl -sf -o /dev/null "http://127.0.0.1:$PORT/api/tags" || { echo "server did not start; see $OUT/server-$label.log"; exit 1; }
 
-lg() { "$LG" run -target "http://127.0.0.1:$PORT" -secret dev-secret -articles "$ARTICLES" -think-scale "$THINK_SCALE" \
+lg() { "${lg_pin[@]}" "$LG" run -target "http://127.0.0.1:$PORT" -secret dev-secret -articles "$ARTICLES" -think-scale "$THINK_SCALE" \
   -run-id "$1$(date +%s%N)" "${@:2}"; }
 lg w -users "$WARMUP_USERS" -ramp 5s -measure 15s -tail 2s -q -out "$OUT/warmup.json" > /dev/null 2>&1
 sleep 3

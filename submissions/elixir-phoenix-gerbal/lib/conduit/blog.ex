@@ -19,6 +19,11 @@ defmodule Conduit.Blog do
   @count_cap 1000
   @max_comments 100
 
+  # Lists leave out the body, which only a single article shows, and authors leave out email and password hash.
+  @summary_fields [:id, :slug, :title, :description, :author_id, :created_at, :updated_at]
+  @article_fields [:body | @summary_fields]
+  @author_fields [:id, :username, :bio, :image]
+
   ## Article lists
 
   @doc """
@@ -119,7 +124,8 @@ defmodule Conduit.Blog do
   # Lists pick a page of ids first and then load just those articles, so the per-article subqueries for counts and
   # the viewer run for the page only.
   defp load_page(page_ids, viewer_id) do
-    Repo.all(from a in articles_query(viewer_id), where: a.id in subquery(page_ids), order_by: [desc: a.id])
+    query = articles_query(viewer_id, @summary_fields)
+    Repo.all(from a in query, where: a.id in subquery(page_ids), order_by: [desc: a.id])
   end
 
   defp capped_count(query) do
@@ -133,7 +139,7 @@ defmodule Conduit.Blog do
   # Articles with their author, tag names, favorite count, and the viewer's `favorited` and `following`.
   #
   # Tag names are aggregated in the same query rather than preloaded, which would cost a second round trip.
-  defp articles_query(viewer_id) do
+  defp articles_query(viewer_id, fields \\ @article_fields) do
     favorites = from f in Favorite, where: f.article_id == parent_as(:article).id
     favorited = from f in favorites, where: f.user_id == ^(viewer_id || 0)
 
@@ -148,13 +154,13 @@ defmodule Conduit.Blog do
       as: :article,
       join: u in assoc(a, :author),
       as: :author,
-      select: %{
-        a
-        | tag_list: subquery(tag_names),
+      select:
+        merge(struct(a, ^fields), %{
+          tag_list: subquery(tag_names),
           favorites_count: subquery(from f in favorites, select: count()),
           favorited: exists(subquery(favorited)),
-          author: %{u | following: exists(subquery(Profiles.follows_author(viewer_id)))}
-      }
+          author: merge(struct(u, @author_fields), %{following: exists(subquery(Profiles.follows_author(viewer_id)))})
+        })
   end
 
   ## Single articles
@@ -250,7 +256,11 @@ defmodule Conduit.Blog do
           where: c.article_id == ^article_id,
           order_by: [desc: c.created_at, desc: c.id],
           limit: @max_comments,
-          select: %{c | author: %{u | following: exists(subquery(Profiles.follows_author(viewer_id)))}}
+          select:
+            merge(c, %{
+              author:
+                merge(struct(u, @author_fields), %{following: exists(subquery(Profiles.follows_author(viewer_id)))})
+            })
 
       {:ok, Repo.all(query)}
     end

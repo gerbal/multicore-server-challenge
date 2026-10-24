@@ -32,7 +32,8 @@ front, so this submission does too.
 | `064f815` | `Front: direct`: `+Q 1000000`, backlog 8,192, GC after every keep-alive request, README |
 | `3578003` | This `tuning/` folder (draft handover) |
 | `81ffe73` | Tag names aggregated inside the article query |
-| `73caebb`, then this file's last edit | Handover finished; session 1 data |
+| `73caebb`, `33896c9` | Handover finished; session 1 data |
+| session 2's commit | Select only the columns the JSON sends; `bench.sh` CPU pinning; session 2 data and this update |
 
 ### What the shipped config sets, and why
 
@@ -45,6 +46,7 @@ front, so this submission does too.
 | `read_timeout` 75 s | `runtime.exs` | Longer than the workload's 70 s maximum think time, so the server never closes a thinking user |
 | Pool 10 per core, capped at 90 | `start.sh` | Matches the Go example. Locally 40 beat 20 and 10 at saturation (below); unconfirmed on 8 cores |
 | Tag names in the article query | `Conduit.Blog` | Strong: see batch 4. One round trip and Ecto's preloader removed per article list/page |
+| Only the columns the JSON sends | `Conduit.Blog` | Strong: batch 6 (session 2). Lists skip `body`, authors skip `email`/`password_hash` |
 
 ## What was measured, and how far to trust it
 
@@ -108,7 +110,70 @@ Reading:
 - Profile (`tprof` call time, 500 users, before the tuning): Jason encoding ~10%, socket writes (`port_command`)
   ~12%, Ecto planner + its ETS cache ~10%, gzip ~4%, the rest spread thin. Nothing pathological.
 
+## Session 2: an 8-thread stand-in for the box, full seed
+
+**Host**: a Ryzen 9 5900X workstation (12 cores / 24 threads, 125 GB, Fedora Atomic), with everything in a rootless
+podman Ubuntu 24.04 container (setup below). The app and Postgres 18 (the box's pgtune config for 8 vCPU / 16 GB)
+were pinned to CPUs 0-3,12-15, i.e. 4 cores / 8 threads on one CCD, so the BEAM ran 8 schedulers and `start.sh`
+picked pool 80. The loadgen was pinned to the other CCD (6-11,18-23) and no run was LG-limited. Full seed,
+`THINK_SCALE=0.2`. Closer to the box than session 1, but SMT threads on a desktop chip, not the box's vCPUs.
+
+Knee of the shipped build (single runs, fresh server and DB each):
+
+| Users | req/s | p95 | p99 | Errors | App cores | PG cores |
+|---:|---:|---:|---:|---:|---:|---:|
+| 2,000 | 2,634 | 2.8 ms | 4.6 ms | 0% | 2.93 | 1.26 |
+| 3,500 | 4,636 | 4.4 ms | 7.0 ms | 0% | 4.39 | 2.39 |
+| 5,000 | 6,588 | 26 ms | 44 ms | 0% | 3.77 | 3.74 |
+| 6,500 | 7,008 | 238 ms | 1,159 ms | 3.29% ✗ | 3.78 | 3.79 |
+| 8,000 | 8,149 | 519 ms | 664 ms | 55% ✗ | 5.23 | 2.36 |
+
+From 5,000 users the 8 threads are saturated, split about evenly between the BEAM and Postgres, so only less CPU per
+request moves the knee. (App CPU per request falls from ~0.95 to ~0.55 ms as load rises: batching at saturation.)
+
+Batch 5, interleaved, `ROUNDS=2` (4 runs each), 6,000 users:
+
+| Config | req/s | p95 | p99 | App CPU/req | PG CPU/req | Runs (req/s) |
+|---|---:|---:|---:|---:|---:|---|
+| shipped | 7,042 | 164 ms | 203 ms | 0.524 ms | 0.554 ms | 6,844 / 7,155 / 7,181 / 6,991 |
+| GC every 5th request | 7,055 | 156 ms | 200 ms | 0.519 ms | 0.557 ms | 6,874 / 7,168 / 7,196 / 6,982 |
+| Ecto + Phoenix logging off | 7,093 | 159 ms | 195 ms | 0.518 ms | 0.553 ms | 7,058 / 7,072 / 7,152 / 7,089 |
+| pool 20 | 7,109 | 150 ms | 192 ms | 0.567 ms | 0.496 ms | 7,147 / 7,032 / 7,187 / 7,069 |
+
+Reading: no dial wins. All four are within 1% while runs of one config spread 5%. GC every request costs nothing
+measurable, so it stays (the memory saving is certain). Logging off saves ~1% app CPU, too small to resolve. Pool 20
+moves CPU from Postgres to the BEAM (+8% / -10%) for the same total.
+
+Batch 6, interleaved, `ROUNDS=2`, 6,000 users:
+
+| Config | req/s | p95 | p99 | App CPU/req | PG CPU/req | Runs (req/s) |
+|---|---:|---:|---:|---:|---:|---|
+| shipped | 6,984 | 172 ms | 215 ms | 0.527 ms | 0.558 ms | 6,971 / 7,038 / 7,024 / 6,905 |
+| **only the columns the JSON sends** | **7,174** | **142 ms** | **174 ms** | **0.514 ms** | **0.547 ms** | 7,154 / 7,204 / 7,188 / 7,151 |
+
+**Shipped**: every run beat every run of the old query. `articles_query/2` takes a field list (lists pass the
+summary fields without `body`; single articles add it) and selects `merge(struct(a, ^fields), %{...})`; authors of
+articles and comments load `[:id, :username, :bio, :image]`.
+
+**JIT (old question 6) is settled without a run**: JIT never fires. I logged every statement under load and ran
+`EXPLAIN (GENERIC_PLAN)` on each: only the plain article list's generic plan (unknown `LIMIT`/`OFFSET`) costs more
+than `jit_above_cost` (848k vs 100k), and the plan cache never picks it because the custom plans cost 31 (plain
+list) to 382 (tag list) at the loadgen's offsets (0-40). `jit: "off"` would change nothing.
+
 ## Open questions, in the order I'd tackle them
+
+After session 2 (questions 1-4, 6 and 7 below are done or settled; see above):
+
+- **Real direct-mode scale** (question 5) is now the biggest unknown and needs no new host: `THINK_SCALE=1` with
+  tens of thousands of users. The container has a 1,048,576 file limit and `somaxconn` 65,535.
+- **CPU per request is what's left.** Profile at saturation on the 8-thread setup (`profile.sh`) before guessing.
+  Candidates: the per-article correlated subqueries (favorite count, `favorited`, `following`) vs one aggregate
+  join, and `GET /api/articles/:slug/comments` (the most frequent request with the article lookup) as one query
+  instead of two.
+- Logging off once more with `ROUNDS=3` if a 1% win is worth shipping; it's a standard production setting either way.
+- `+sbwt none` and `+S` on the 8-thread setup (old question 8).
+
+Original list from session 1:
 
 1. **Find the shipped build's knee on the new host** (full seed, `TEMPLATE=conduit_seed`, loadgen on another machine
    if possible), then re-run the batch-4 comparisons there (logging, GC interval, pool size) with `interleave.sh`.
@@ -126,6 +191,32 @@ Reading:
 7. Lists load `articles.body` and authors load `password_hash`/`email` that the JSON never sends. Selecting only the
    needed fields is a small idiomatic change worth measuring.
 8. `+sbwt none` and scheduler counts (`+S`) once Postgres and the app compete for 8 real cores.
+
+## Setting up the session-2 host again (podman on the workstation)
+
+The container is `mcsc-bench` (image `mirror.gcr.io/library/ubuntu:24.04`, the repo mounted at `/repo`):
+
+```bash
+podman run -d --name mcsc-bench -v "$PWD":/repo:Z --workdir /repo --ulimit nofile=1048576:1048576 --shm-size=4g \
+  --sysctl net.core.somaxconn=65535 --sysctl net.ipv4.tcp_max_syn_backlog=65535 \
+  --sysctl net.ipv4.ip_local_port_range="1024 65535" --sysctl net.ipv4.tcp_tw_reuse=1 \
+  mirror.gcr.io/library/ubuntu:24.04 sleep infinity
+```
+
+Inside it: PGDG `postgresql-18`, Go 1.27.1 in `/usr/local/go`, `install.sh`; Postgres configured as
+`box/setup-box.sh` does, with `box/pg-conf.sh` computed for 16 GB (its `MEM_KB` line replaced) under
+`taskset -c 0-3,12-15`, and started with `taskset -c 0-3,12-15 pg_ctlcluster 18 main start` so every backend
+inherits the pinning. `/root/env.sh` sets `PGHOST=127.0.0.1 PGUSER=postgres PGPASSWORD=postgres` and the PATH.
+A batch: `podman exec mcsc-bench bash -c '. /root/env.sh; cd /repo/submissions/elixir-phoenix-gerbal;
+APP_CPUS=0-3,12-15 LG_CPUS=6-11,18-23 TEMPLATE=conduit_seed OUT=... tuning/interleave.sh ...'`.
+
+Traps on this host:
+- **Container DNS hung** (pasta's forwarder vs the host's Tailscale resolvers): write public resolvers into the
+  container's `/etc/resolv.conf`. An `apt-get` from the hung attempt kept the apt lock until killed.
+- **`podman exec` without `-i` drops stdin**, so `python3 - <<EOF` silently runs nothing.
+- **PID 1 is `sleep infinity`, which doesn't reap**: every stopped server stays a `beam.smp` zombie. Harmless for
+  `bench.sh` (a zombie's tick counters are frozen, so they cancel out), but recreate with `--init` next time.
+- Once, `test/run.sh` hit `eaddrinuse` on port 3000 right after a variant's conformance run; it didn't reproduce.
 
 ## Setting up the new host
 
@@ -146,7 +237,7 @@ To get close to the benchmark box (8 vCPU, 16 GB, Ubuntu 24.04, Postgres 18):
 
 | File | What it does |
 |---|---|
-| `bench.sh` | One measured point: fresh DB + server, warm-up, run, CPU per request. All settings via env (see its header) |
+| `bench.sh` | One measured point: fresh DB + server, warm-up, run, CPU per request. All settings via env (see its header), including `APP_CPUS`/`LG_CPUS` pinning |
 | `interleave.sh` | Runs a configs file as forward + reversed cycles through `bench.sh` |
 | `summarize.py` | Averages result lines per config, with the per-run spread |
 | `make-variant.sh` | Copies the submission to a scratch dir, applies patches, builds it, so variants never touch the tree |
@@ -155,6 +246,7 @@ To get close to the benchmark box (8 vCPU, 16 GB, Ubuntu 24.04, Postgres 18):
 | `idle-memory.sh` + `idle_conns.py` | Memory per idle keep-alive connection |
 | `port80.sh` | Binds port 80 as an unprivileged user with only the ambient capability, like `box/challenge.service` |
 | `data/session-1/` | Every result line and loadgen summary from this session (`results.txt` is the index) |
+| `data/session-2/` | The same for session 2 (knee ladder, batches 5 and 6) |
 
 Example on the new host:
 
