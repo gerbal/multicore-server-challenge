@@ -85,6 +85,12 @@ Serving directly means one keep-alive connection per user, tens of thousands of 
   300 s holds at real pacing (full seed, app + Postgres pinned to 8 threads, 27,000 users), the default failed both
   runs on errors (1.5%, 4.6%) and 200 ms passed both (0% errors, p95 409 ms). Below saturation the pool never queues
   that long, so nothing changes there.
+- Each connection process starts with a 4,181-word heap (`genserver_options: [spawn_opt: [min_heap_size: 4181]]`),
+  and Postgrex decodes text columns by reference (`Conduit.PostgrexTypes`, `decode_binary: :reference`) instead of
+  copying them out of the received packet. The first stops every request from re-growing a heap that the
+  per-request GC just shrank; the second is safe because that GC runs after every request. Together, interleaved on
+  the full seed (6,000 users, 8 threads, 4 runs each): 7,139 → 7,381 req/s, p95 152 → 108 ms, 6% less app CPU per
+  request, every run faster. The price is memory: ~35 KB more per connection, 918 MB → 1,863 MB at 27,000 users.
 - `limit` and `offset` must be plain digits (`Conduit.Types.PlainInteger`); Ecto's `:integer` would also take `+5`.
 - Logger level `:warning` in prod.
 

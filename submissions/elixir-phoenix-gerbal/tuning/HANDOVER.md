@@ -34,7 +34,9 @@ front, so this submission does too.
 | `81ffe73` | Tag names aggregated inside the article query |
 | `73caebb`, `33896c9` | Handover finished; session 1 data |
 | `b4cdc35` | Select only the columns the JSON sends; `bench.sh` CPU pinning; session 2 data and this update |
-| the next commit | Ecto `queue_target` 200 ms, from the real-pacing holds below |
+| `fd00b5d` | Ecto `queue_target` 200 ms, from the real-pacing holds below |
+| `8d3164a` | Erlang/OTP 29.1.2 and Elixir 1.20.4 (batch 10) |
+| the next commit | 4,181-word connection heap + Postgrex reference decoding (batches 11-12); dependency survey |
 
 ### What the shipped config sets, and why
 
@@ -46,6 +48,8 @@ front, so this submission does too.
 | GC after every keep-alive request | `runtime.exs` | Memory: 80 → 14 KB per idle connection (15,000 idle connections). CPU cost: see batch 4 below |
 | `read_timeout` 75 s | `runtime.exs` | Longer than the workload's 70 s maximum think time, so the server never closes a thinking user |
 | Ecto `queue_target` 200 ms | `runtime.exs` | Strong at real pacing: batch 8 (session 2). The default sheds queries as 500s at saturation |
+| Connection heap `min_heap_size: 4181` | `runtime.exs` | Strong: batches 11-12. ~35 KB more per connection |
+| Postgrex `decode_binary: :reference` | `Conduit.PostgrexTypes` | Strong: batches 11-12 |
 | Pool 10 per core, capped at 90 | `start.sh` | Matches the Go example. Locally 40 beat 20 and 10 at saturation (below); unconfirmed on 8 cores |
 | Tag names in the article query | `Conduit.Blog` | Strong: see batch 4. One round trip and Ecto's preloader removed per article list/page |
 | Only the columns the JSON sends | `Conduit.Blog` | Strong: batch 6 (session 2). Lists skip `body`, authors skip `email`/`password_hash` |
@@ -201,9 +205,65 @@ while shipped passed a 300 s hold at 26k (p95 66 ms). So batch 8 compared holds 
 both runs). It only changes behaviour when the pool is saturated. 500 ms was not held-tested; it would have less
 latency headroom.
 
+### Exception logging under overload (batch 9, probes at 30,000 users, 2 runs each)
+
+| Config | req/s | p95 | Errors | App CPU/req | TCP connects | Server log lines |
+|---|---:|---:|---:|---:|---:|---:|
+| shipped (`queue_target` 200) | 7,026 | 776 ms ✗ | 0.09% | 0.526 ms | ~32k | 14-23k |
+| … `log_exceptions_with_status_codes: []` | 6,997 | 763 ms ✗ | 0.01% | 0.527 ms | ~32k | 0 |
+| `queue_target` 50 | 7,554 | 292 ms | 28.8% ✗ | 0.582 ms | ~184k | 107-121k |
+| … `log_exceptions_with_status_codes: []` | 7,609 | 245 ms | 16.1% ✗ | 0.509 ms | ~117k | 0 |
+
+With the old 50 ms target, logging every shed query (Phoenix renders the error, re-raises, Bandit formats the
+stacktrace) cost 13% app CPU per request and much of the error rate. With 200 ms almost nothing is shed, so logging
+costs nothing measurable; both fail at 30k on latency. Not shipped: it would only trade away production error logs.
+Every raised exception also closes the keep-alive connection (`Bandit.Pipeline` returns `{:error, _}`); no option
+changes that.
+
+### Toolchain: OTP 28.5.0.8 / Elixir 1.19.6 → OTP 29.1.2 / Elixir 1.20.4 (batch 10, 6,000 users, 4 runs each)
+
+7,094 vs 7,056 req/s, app CPU 0.518 vs 0.518 ms per request: no change. The app compiles without warnings under
+1.20's type checker; deps warn only about `jose`'s deprecated `catch`. A release bundles its ERTS, so the old build
+(`/srv/v/switches-otp28`) stays runnable after the upgrade for comparisons like this.
+
+### The dependency survey and the shortlist (batches 11-12, 6,000 users, 4 runs each)
+
+A survey of every dependency's options in `deps/` (with each default read from source) gave a ranked shortlist,
+implemented as switches in `experiment-switches.patch` (`XMIN_HEAP`, `XPG_REF`, `XSIGNER`; busy-wait via
+`ERL_AFLAGS`, which `interleave.sh` now accepts quoted). Batch 11 (OTP 29 base 7,257 req/s, 0.507 ms app CPU):
+
+| Config | req/s | p95 | App CPU/req | Verdict |
+|---|---:|---:|---:|---|
+| `+sbwt none +sbwtdcpu none +sbwtdio none` | 7,262 | 129 ms | 0.506 ms | no effect on 8 threads either |
+| connection heap `min_heap_size: 4181` | 7,307 | 117 ms | 0.490 ms | -3.4% app CPU, every run below every base run |
+| prebuilt Joken signer (`:persistent_term`) | 7,241 | 131 ms | 0.506 ms | no effect |
+| Postgrex `decode_binary: :reference` | 7,306 | 123 ms | 0.497 ms | -2% app CPU, every run below every base run |
+
+Batch 12, both together:
+
+| Config | req/s | p95 | p99 | App CPU/req | Runs (req/s) |
+|---|---:|---:|---:|---:|---|
+| base | 7,139 | 152 ms | 183 ms | 0.514 ms | 7,112 / 7,223 / 7,053 / 7,167 |
+| **heap 4181 + reference decoding** | **7,381** | **108 ms** | **134 ms** | **0.483 ms** | 7,348 / 7,387 / 7,355 / 7,433 |
+
+Real-pacing probes at 27,000 users: p95 165 → 77 ms, peak BEAM RSS 918 → 1,863 MB (~35 KB per connection, the
+33 KB heap plus bookkeeping). **Shipped both.** Why the heap helps: the GC after every request shrinks each heap back
+to the minimum, so every request re-grew it through several minor collections. Reference decoding was checked live:
+`body` values point into the 2 KB receive buffer instead of being copies (values under 64 bytes are copied either
+way). Not tried yet: 2,584 or 6,765 words, which trade the same CPU against memory differently.
+
+Other survey findings, not benchmarked: `Plug.RequestId` and the Phoenix/Ecto log handlers do per-request work that
+is thrown away at `:warning`, about 1% each (see batch 5's logging run); `:telemetry.persist/0` would move
+telemetry handlers to `persistent_term`; the logger handler goes synchronous above a 10-message queue, which
+matters only while errors are being logged. Jason, Ecto's query cache, `prepare: :named` and `plan_cache_mode`
+are already the best settings.
+
 ## Open questions, in the order I'd tackle them
 
 After session 2 (questions 1-7 below are done or settled; see above):
+
+- **Heap size sweep**: 2,584 / 4,181 / 6,765 words, interleaved, with RSS. Then the knee and a 300 s hold with
+  everything shipped (the last measured passing hold, 27k, predates the heap and decoding changes).
 
 - **The overload cliff.** From 26k to 30k users errors go 0% → 30%, and every 500 closes the user's connection,
   so the load turns into a reconnect storm. Prod logs at `:warning`, so each shed query also writes a ~20-line
@@ -213,7 +273,9 @@ After session 2 (questions 1-7 below are done or settled; see above):
   join, and `GET /api/articles/:slug/comments` (the most frequent request with the article lookup) as one query
   instead of two.
 - Logging off once more with `ROUNDS=3` if a 1% win is worth shipping; it's a standard production setting either way.
-- `+sbwt none` and `+S` on the 8-thread setup (old question 8).
+- `+S 6:6` / `+S 7:7` on the 8-thread setup (busy-wait off is settled: no effect).
+- A bundle of the ~1% items (Phoenix logger off, Ecto `log: false`, `:telemetry.persist()`, no `Plug.RequestId`),
+  `ROUNDS=3`.
 
 Original list from session 1:
 
@@ -283,7 +345,7 @@ To get close to the benchmark box (8 vCPU, 16 GB, Ubuntu 24.04, Postgres 18):
 | `interleave.sh` | Runs a configs file as forward + reversed cycles through `bench.sh` |
 | `summarize.py` | Averages result lines per config, with the per-run spread |
 | `make-variant.sh` | Copies the submission to a scratch dir, applies patches, builds it, so variants never touch the tree |
-| `patches/experiment-switches.patch` | Env switches for experiments: `XPOOL_COUNT`, `XQ_TARGET`, `XQ_INTERVAL`, `XREPO_LOG`, `XPHX_LOG`, `XGC_EVERY`. Never commit it applied |
+| `patches/experiment-switches.patch` | Env switches for experiments: `XPOOL_COUNT`, `XQ_TARGET`, `XQ_INTERVAL`, `XREPO_LOG`, `XPHX_LOG`, `XGC_EVERY`, `XLOG_EXC`, `XMIN_HEAP`, `XPG_REF` (`false` = default types), `XSIGNER=prebuilt`. Never commit it applied |
 | `profile.sh` + `prof.exs` | `tprof` call-time profile of the prod build under load |
 | `idle-memory.sh` + `idle_conns.py` | Memory per idle keep-alive connection |
 | `port80.sh` | Binds port 80 as an unprivileged user with only the ambient capability, like `box/challenge.service` |

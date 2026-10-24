@@ -1,22 +1,34 @@
---- a/config/runtime.exs	2026-10-23 22:07:03.266087288 -0400
-+++ b/config/runtime.exs	2026-10-23 22:07:03.277053981 -0400
-@@ -8,7 +8,13 @@
+diff -ruN a/config/runtime.exs b/config/runtime.exs
+--- a/config/runtime.exs	2026-10-23 23:36:38.051127303 -0400
++++ b/config/runtime.exs	2026-10-23 23:36:38.068208025 -0400
+@@ -8,10 +8,16 @@
      pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
      # At saturation, let a query wait up to 200 ms for a connection (DBConnection's default is 50 ms) before the
      # pool starts shedding: latency has headroom under the 500 ms p95 limit, while every shed query is a 500.
--    queue_target: 200
+-    queue_target: 200,
 +    # EXPERIMENT SWITCHES (tuning/patches/experiment-switches.patch; scratch copies only, never committed)
 +    queue_target: String.to_integer(System.get_env("XQ_TARGET", "200")),
 +    pool_count: String.to_integer(System.get_env("XPOOL_COUNT", "1")),
 +    queue_interval: String.to_integer(System.get_env("XQ_INTERVAL", "2000")),
-+    log: if(System.get_env("XREPO_LOG") == "false", do: false, else: :debug)
++    log: if(System.get_env("XREPO_LOG") == "false", do: false, else: :debug),
+     # Decoded text columns stay sub-binaries of the received packet instead of being copied; every request's heap is
+     # collected when it ends (see `gc_every_n_keepalive_requests` below), so nothing holds on to a packet for long.
+-    types: Conduit.PostgrexTypes
++    types: if(System.get_env("XPG_REF") == "false", do: Postgrex.DefaultTypes, else: Conduit.PostgrexTypes)
 +
 +  if System.get_env("XPHX_LOG") == "false", do: config(:phoenix, :logger, false)
  
    config :joken, default_signer: fetch_env!.("JWT_SECRET")
  
-@@ -24,7 +30,7 @@
-       http_options: [compress: false],
+@@ -24,10 +30,13 @@
+       port: String.to_integer(System.get_env("PORT", "3000")),
+       # Responses go out uncompressed: gzip is optional in SPEC.md and costs CPU on every response, which the box,
+       # shared with Postgres, is shorter of than bandwidth.
+-      http_options: [compress: false],
++      http_options: [
++        compress: false,
++        log_exceptions_with_status_codes: if(System.get_env("XLOG_EXC") == "false", do: [], else: 500..599)
++      ],
        # Collect each connection's garbage after every request (Bandit's default is every 5th), so a user who is
        # thinking between pages doesn't hold on to the heap their last request built.
 -      http_1_options: [gc_every_n_keepalive_requests: 1],
@@ -24,3 +36,44 @@
        thousand_island_options: [
          # Clients hold one keep-alive connection each and think for up to 70 s between pages; don't close them first.
          read_timeout: 75_000,
+@@ -36,7 +45,7 @@
+         # Start each connection process with a 4,181-word (33 KB) heap. The GC after every request shrinks the heap
+         # back to this minimum, and a request needs about this much, so it no longer re-grows the heap through a
+         # series of minor collections on every request. Costs ~35 KB per connection (~1 GB at 27,000 users).
+-        genserver_options: [spawn_opt: [min_heap_size: 4181]]
++        genserver_options: [spawn_opt: [min_heap_size: String.to_integer(System.get_env("XMIN_HEAP", "4181"))]]
+       ]
+     ]
+ end
+diff -ruN a/lib/conduit/accounts/token.ex b/lib/conduit/accounts/token.ex
+--- a/lib/conduit/accounts/token.ex	2026-10-23 23:36:38.053367888 -0400
++++ b/lib/conduit/accounts/token.ex	2026-10-23 23:36:38.068283437 -0400
+@@ -30,7 +30,13 @@
+   """
+   @spec fetch_user_id(String.t()) :: {:ok, pos_integer()} | :error
+   def fetch_user_id(token) do
+-    with {:ok, %{"sub" => sub, "exp" => _exp}} <- verify_and_validate(token),
++    claims =
++      case :persistent_term.get(__MODULE__, nil) do
++        nil -> verify_and_validate(token)
++        signer -> verify_and_validate(token, signer)
++      end
++
++    with {:ok, %{"sub" => sub, "exp" => _exp}} <- claims,
+          user_id when user_id > 0 <- String.to_integer(sub) do
+       {:ok, user_id}
+     else
+diff -ruN a/lib/conduit/application.ex b/lib/conduit/application.ex
+--- a/lib/conduit/application.ex	2026-10-23 23:36:38.052229255 -0400
++++ b/lib/conduit/application.ex	2026-10-23 23:36:38.068246586 -0400
+@@ -3,6 +3,10 @@
+ 
+   @impl true
+   def start(_type, _args) do
++    # EXPERIMENT SWITCH XSIGNER=prebuilt: parse the HS256 key once instead of on every verify
++    if System.get_env("XSIGNER") == "prebuilt",
++      do: :persistent_term.put(Conduit.Accounts.Token, Joken.Signer.parse_config(:default_signer))
++
+     children = [Conduit.Repo, ConduitWeb.Endpoint]
+     Supervisor.start_link(children, strategy: :one_for_one, name: Conduit.Supervisor)
+   end

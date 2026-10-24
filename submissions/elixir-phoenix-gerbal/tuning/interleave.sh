@@ -6,7 +6,8 @@
 #   [ROUNDS=1] tuning/interleave.sh <configs-file> <users>
 #
 # Each non-comment line of <configs-file> is `name: VAR=value VAR=value ...`, the environment for that config.
-# Set APP=<variant dir> in a line to benchmark a build from make-variant.sh. Example:
+# Set APP=<variant dir> in a line to benchmark a build from make-variant.sh. Values are shell words, so quote one
+# that holds spaces (ERL_AFLAGS="+sbwt none +S 6"). Example:
 #
 #   gc1:        APP=/srv/v/switches
 #   gc5:        APP=/srv/v/switches XGC_EVERY=5
@@ -23,7 +24,7 @@ for l in "${lines[@]}"; do names+=("${l%%:*}"); envs+=("${l#*:}"); done
 
 run=0
 one() { run=$((run + 1)); echo "== $(date +%T) ${names[$1]} (run $2)"
-        env ${envs[$1]} bash "$HERE/bench.sh" "$PREFIX${names[$1]}-$2" "$users"; }
+        eval "env ${envs[$1]}" bash "\"$HERE/bench.sh\"" "\"$PREFIX${names[$1]}-$2\"" "$users"; }
 for (( r=1; r<=ROUNDS; r++ )); do
   for (( i=0; i<${#names[@]}; i++ )); do one $i $((2*r-1)); done
   for (( i=${#names[@]}-1; i>=0; i-- )); do one $i $((2*r)); done
