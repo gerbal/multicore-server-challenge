@@ -10,8 +10,8 @@ It serves the internet itself (`0.0.0.0:80`), as most Phoenix deployments do wit
 
 | Piece | Version |
 |---|---|
-| Erlang/OTP | 28.5.0.8 (hex.pm's official Ubuntu 24.04 build, sha256-pinned in `install.sh`) |
-| Elixir | 1.19.6 (official release zip, sha256-pinned) |
+| Erlang/OTP | 29.1.2 (hex.pm's official Ubuntu 24.04 build, sha256-pinned in `install.sh`) |
+| Elixir | 1.20.4 (official release zip, sha256-pinned) |
 | HTTP | Phoenix 1.8 on Bandit 1.13 |
 | JSON | Jason 1.4 |
 | Postgres | Ecto SQL 3.14 + Postgrex 0.22 |
