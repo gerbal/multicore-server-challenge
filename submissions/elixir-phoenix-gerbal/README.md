@@ -82,7 +82,7 @@ The queries are Ecto's, not SPEC.md's SQL strings, but they keep the reference S
 - The feed takes each followed author's newest `limit + offset` articles through a lateral join and merges them,
   so it walks `articles_author_idx` instead of sorting everything the followed authors ever wrote.
 - `articlesCount` is `count(*)` over a subquery limited to 1,000 rows. It rides along with the page's ids as an
-  uncorrelated scalar subquery (`select: {p.id, subquery(count)}`), which Postgres runs once, so a list is two
+  uncorrelated scalar subquery (`select: {i.id, subquery(count)}`), which Postgres runs once, so a list is two
   statements (ids and count, then the articles); only a page past the end, which has no row to carry the count,
   asks for it separately. At real pacing (36,000 users, interleaved) that took 9,034 → 9,292 req/s and p95
   481 → 236 ms.
@@ -90,6 +90,13 @@ The queries are Ecto's, not SPEC.md's SQL strings, but they keep the reference S
   reference's `ARRAY(...)` column. A `many_to_many` preload would be the more obvious Ecto, but it costs a second
   round trip per page: in local interleaved runs (1,700 users) aggregating them took 1,984 → 2,131 req/s and p95
   220 → 114 ms, with 9% less app and 7% less Postgres CPU per request.
+
+  Each article's tags are walked in `article_tags` and their names looked up by `tags`' primary key through a lateral
+  join to a one-row subquery (`inner_lateral_join: t in subquery(tag_name)`, `limit: 1`). Written as a plain join,
+  as in the reference's SQL, Postgres hashes a scan of every tag once per article, because `tags` is small: perf put
+  that hash join at 70% of a list page's article statement. The `LIMIT` keeps Postgres from flattening the lateral
+  join back into that plan. In pgbench the statement went 0.36 → 0.23 ms; at real pacing (38,000 users, interleaved)
+  Postgres CPU per request went 0.324 → 0.272 ms (−16%) and p95 104 → 11 ms, for 1.4% more app CPU.
 - Article and comment queries select only the columns the JSON sends (`struct(a, ^fields)` merged with the computed
   fields): lists leave out the ~1 KB `body`, and authors leave out `email` and `password_hash`. In interleaved runs
   on the full seed (6,000 users, 8 threads) this took 6,984 → 7,174 req/s and p95 172 → 142 ms, with every run of

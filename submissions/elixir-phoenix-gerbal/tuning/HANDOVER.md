@@ -74,6 +74,7 @@ front, so this submission does too.
 | Elixir's built-in `JSON` | `config.exs` | Strong: batch 17 |
 | Heaps and binaries on the `gf` allocation strategy | `rel/vm.args.eex` | Strong: batches 28-29 (app CPU -3% at 37k and 39k), less memory |
 | The viewer's `favorited`/`following` as left joins | `Conduit.Blog` | Moderate: batches 28-29 (app CPU -3.1% / -1.8%); with gf -4.7% at 39k |
+| Tag names by primary key (lateral join, `limit: 1`) | `Conduit.Blog` | Strong: batch 31, Postgres CPU per request -16%, p95 104 → 11 ms at 38k |
 | Tag names in the article query | `Conduit.Blog` | Strong: see batch 4. One round trip and Ecto's preloader removed per article list/page |
 | Only the columns the JSON sends | `Conduit.Blog` | Strong: batch 6 (session 2). Lists skip `body`, authors skip `email`/`password_hash` |
 
@@ -335,6 +336,8 @@ Postgres 0.33-0.34 vs its 0.33. Postgres is at parity; the remaining gap is the 
 | 27 | VM flags in `rel/` and the pool default in `runtime.exs` instead of `start.sh`, plus `ConduitWeb.Telemetry` and `:runtime_tools` | 37,000 | 9,611 → 9,593 req/s, app CPU 0.444 → 0.449 ms, runs overlapping: noise (same `-S 5:5 -Q 1000000` on the beam command line, 24 connections) |
 | 28 | From the perf profile: viewer flags as left joins (`joins`); allocators `gf`, 20 MB carriers (`mbcs`), a 4 GB super carrier (`scs`) | 37,000 | base 9,555 req/s, app 0.447 ms, p95 193 ms; joins 9,797 / 0.433 / 45; gf 9,729 / 0.434 / 66; mbcs 9,646 / 0.443; scs 9,698 / 0.442. joins and gf won both runs: **shipped**; mbcs and scs noise. (`+MHacul 0` alone turns into gf.) |
 | 29 | joins, gf and both, base mid-batch | 39,000 | base 9,649 req/s, app 0.448 ms, p95 519 ms; joins 9,775 / 0.440 / 406; gf 9,806 / 0.434 / 353; both 9,901 / 0.427 / 371. joins' Postgres saving in batch 28 (-4%) didn't repeat. Peak RSS at 37,000: base 2,474 MB, gf 2,237, both 2,300 |
+| 30 | From the second profile: the list's ids query without its `subquery(page)` wrapper (`flat`); `+IOt 2`, `+spp true`, `+sub true`, `pool_count: 2` × 12 | 38,000 | all within ~1% of base (9,852 req/s, app 0.429 ms): noise. `flat` kept as a simplification (same Postgres plans) |
+| 31 | From a perf profile of Postgres: tag names by primary key through a lateral join (`tags`), vs base and flat | 38,000 | base 9,937 req/s, app 0.424, pg 0.324 ms, p95 104 ms; tags 10,055 / 0.430 / **0.272** / **11 ms**: **shipped**. The plain join hashed a scan of all 200 tags per article (pgbench 0.36 → 0.23 ms per page statement) |
 
 **Held score of `60e6e88` on this rig: 37,000** (probe at 39,000 failed on p95; 300 s hold at 37,000 passed,
 p95 457 ms, p99 633 ms, 0% errors, 9,221 req/s). With the calibration above (box ≈ 0.78 × rig), **≈ 29,000 on

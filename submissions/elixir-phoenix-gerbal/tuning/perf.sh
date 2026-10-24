@@ -12,6 +12,9 @@
 # The helper image needs perf and js-d3-flame-graph: a Fedora toolbox with `dnf install perf js-d3-flame-graph`,
 # saved with `podman commit <toolbox> localhost/perf-tools`.
 #
+# TARGET=postgres samples the benchmark database's Postgres backends instead of the BEAM (whose stacks are then just
+# Postgres's C code; perf-layers.py's groups are the BEAM's, so read flat.txt and the flame graph).
+#
 # Settings (environment): BENCH (bench container, default mcsc-bench), PERF_IMAGE (default localhost/perf-tools),
 # SAMPLE_SECONDS (default 20, inside the measured window), FREQ (samples/s per thread, default 499), RESULTS (host
 # directory, default ./tuning-results/perf-<label>). Passed through to bench.sh: APP (a path inside the container),
@@ -43,15 +46,23 @@ until podman exec "$BENCH" test "$OUT/.t0" -nt "$OUT/.perf-start"; do
   sleep 1
 done
 pid=$(podman exec "$BENCH" pgrep -n -x beam.smp)
-echo "== sampling beam.smp (pid $pid) for ${SAMPLE_SECONDS}s at ${FREQ} Hz"
+targets=$pid
+if [ "${TARGET:-beam}" = postgres ]; then
+  targets=$(podman exec "$BENCH" pgrep -d, -f 'postgres: .* conduit_lg ')
+  echo "== sampling $(tr ',' '\n' <<< "$targets" | wc -l) Postgres backends for ${SAMPLE_SECONDS}s at ${FREQ} Hz"
+else
+  echo "== sampling beam.smp (pid $pid) for ${SAMPLE_SECONDS}s at ${FREQ} Hz"
+fi
 
 helper() {
-  podman run --rm --pid="container:$BENCH" --security-opt seccomp=unconfined --security-opt label=disable \
+  # SYS_PTRACE (namespaced, rootless) lets it attach to processes of other users there, like Postgres's backends.
+  podman run --rm --pid="container:$BENCH" --security-opt seccomp=unconfined --security-opt label=disable --cap-add SYS_PTRACE \
     -v "$RESULTS:/out" "$PERF_IMAGE" bash -c "$1"
 }
 # Keep the perf map while the process exists; resolving later goes through the bench container's root.
-helper "perf record -q -F $FREQ -g -p $pid -o /out/perf.data -- sleep $SAMPLE_SECONDS &&
-        cp /proc/$pid/root/tmp/perf-$pid.map /out/"
+helper "perf record -q -F $FREQ -g -p $targets -o /out/perf.data -- sleep $SAMPLE_SECONDS &&
+        cp /proc/$pid/root/tmp/perf-$pid.map /out/" ||
+  { echo "perf record failed; waiting for bench.sh, so that a rerun doesn't overlap it"; wait "$bench"; exit 1; }
 wait "$bench" || true
 cat "$RESULTS/bench.txt"
 
@@ -61,9 +72,10 @@ echo "== reports in $RESULTS"
 helper "cd /out && cp perf-$pid.map /tmp/ &&
         mkdir -p \$(dirname '$APP') && ln -s '/proc/1/root$APP' '$APP' &&
         ln -s /proc/1/root/usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu &&
+        ln -s /proc/1/root/usr/lib/postgresql /usr/lib/postgresql &&
         perf report -i perf.data --stdio --no-children --sort dso,symbol -g none --percent-limit 0.2 \
           > flat.txt 2> /dev/null &&
         perf script -i perf.data -F comm,tid,ip,sym > script.txt 2> /dev/null &&
         perf script -i perf.data -s /usr/libexec/perf-core/scripts/python/flamegraph.py -- -o flamegraph.html \
           > /dev/null 2>&1 || true"
-python3 "$(dirname "$0")/perf-layers.py" "$RESULTS/script.txt" | tee "$RESULTS/layers.txt"
+[ "${TARGET:-beam}" = postgres ] || python3 "$(dirname "$0")/perf-layers.py" "$RESULTS/script.txt" | tee "$RESULTS/layers.txt"
