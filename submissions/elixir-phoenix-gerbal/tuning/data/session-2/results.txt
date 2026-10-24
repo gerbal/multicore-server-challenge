@@ -219,3 +219,7 @@ b26-nosbwt-1           users=38000  req/s=9403.6   p50=214.8   p95=512.5   p99=6
 b26-nosbwt-2           users=38000  req/s=9469.2   p50=180.2   p95=390.1   p99=536.6   err%=0.00   app_ms/req=0.447 pg_ms/req=0.335 app_cores=4.23 pg_cores=3.17
 b26-sdcpu2-2           users=38000  req/s=9448.9   p50=207.9   p95=452.6   p99=618.5   err%=0.00   app_ms/req=0.457 pg_ms/req=0.329 app_cores=4.32 pg_cores=3.11
 b26-shipped-2          users=38000  req/s=9294.4   p50=258.4   p95=554.5   p99=763.9   err%=0.00   app_ms/req=0.458 pg_ms/req=0.338 app_cores=4.25 pg_cores=3.14
+b27-old-1              users=37000  req/s=9630.2   p50=54.5    p95=162.2   p99=192.1   err%=0.00   app_ms/req=0.443 pg_ms/req=0.326 app_cores=4.27 pg_cores=3.14
+b27-new-1              users=37000  req/s=9663.4   p50=50.8    p95=176.9   p99=246.5   err%=0.00   app_ms/req=0.444 pg_ms/req=0.327 app_cores=4.29 pg_cores=3.16
+b27-new-2              users=37000  req/s=9523.0   p50=101.4   p95=276.0   p99=308.5   err%=0.00   app_ms/req=0.454 pg_ms/req=0.332 app_cores=4.32 pg_cores=3.16
+b27-old-2              users=37000  req/s=9591.1   p50=91.6    p95=245.2   p99=321.8   err%=0.00   app_ms/req=0.445 pg_ms/req=0.331 app_cores=4.27 pg_cores=3.17

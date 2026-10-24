@@ -15,3 +15,6 @@ config :conduit, ConduitWeb.Endpoint, http: [port: 4002], server: false
 config :joken, default_signer: "test-secret"
 
 config :logger, level: :warning
+
+# Initialize plugs at runtime for faster test compilation.
+config :phoenix, :plug_init_mode, :runtime

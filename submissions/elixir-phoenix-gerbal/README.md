@@ -19,6 +19,7 @@ It serves the internet itself (`0.0.0.0:80`), as most Phoenix deployments do wit
 | Postgres | Ecto SQL 3.14 + Postgrex 0.22 |
 | JWT | Joken 2.7 (HS256) |
 | bcrypt | bcrypt_elixir 3.3, cost 10 |
+| Telemetry | telemetry_poller 1.3 + telemetry_metrics 1.2 (`ConduitWeb.Telemetry` from `mix phx.new`, no reporter) |
 
 Exact versions and hashes are in `mix.lock`. `install.sh` is the same toolchain installer as
 [`elixir-raw-foovoo`](../elixir-raw-foovoo).
@@ -33,6 +34,13 @@ Exact versions and hashes are in `mix.lock`. `install.sh` is the same toolchain 
 | `ConduitWeb.*Controller` | One per resource; they call a context and return `{:error, reason}` to `FallbackController` |
 | `ConduitWeb.*JSON` | The response shapes (`UserJSON`, `ProfileJSON`, `ArticleJSON`, `CommentJSON`, ...) |
 | `ConduitWeb.Plugs` | `Authenticate` (required/optional token) and `Parsers` (`Plug.Parsers`, but bad JSON is a 422) |
+| `ConduitWeb.Telemetry` | The generator's telemetry supervisor and metric definitions, ready for a reporter |
+| `rel/` | The release's VM flags: `vm.args.eex` (`+Q`) and `env.sh.eex` (`+S`, no distribution) |
+
+The skeleton is `mix phx.new --no-html --no-assets --no-live --no-dashboard --no-mailer --no-gettext` without what a
+JSON API doesn't use (static files, sessions, method override, form parsers, PubSub, DNS clustering) and without
+migrations, since the schema is fixed: tests load `schema.sql` instead. `Phoenix.Ecto.CheckRepoStatus` is left out of
+the dev endpoint for the same reason, because its pending-migration check creates a `schema_migrations` table.
 
 Input is validated by changesets: required, non-empty string fields (only whitespace still counts as non-empty, as
 in SPEC.md), passwords of at most 72 bytes (bcrypt ignores the rest), unique usernames and emails through
@@ -88,9 +96,10 @@ The queries are Ecto's, not SPEC.md's SQL strings, but they keep the reference S
 
 ## Multicore model
 
-One BEAM node with normal schedulers on 5/8 of the cores (`+S 5:5` on the box; Postgres needs the rest): Bandit
-runs a process per connection, and bcrypt's NIF runs on the dirty CPU schedulers (one per core). One Ecto pool of `DB_POOL_SIZE` connections, 3 per core capped at 90 (24 on the
-8-core box). Ecto prepares and caches each query per connection.
+One BEAM node with normal schedulers on 5/8 of the cores (`+S 5:5` on the box, set by `rel/env.sh.eex` when the
+release starts; Postgres needs the rest): Bandit runs a process per connection, and bcrypt's NIF runs on the dirty CPU
+schedulers. One Ecto pool of 3 connections per core, capped at 90 (24 on the 8-core box; `config/runtime.exs`, and
+`DB_POOL_SIZE` overrides it). Ecto prepares and caches each query per connection.
 
 The pool is small on purpose: Postgres runs on the same cores, and more backends than that only made every
 statement slower. At real pacing on 8 threads (34,000 users, interleaved) 24 connections instead of 80 (10 per core,
@@ -103,7 +112,7 @@ and p99 468 → 366 ms.
 
 Serving directly means one keep-alive connection per user, tens of thousands of them, mostly idle:
 
-- `+Q 1000000` in `start.sh`: every TCP socket is a BEAM port, and the default limit of 65,536 would cap the number
+- `+Q 1000000` in `rel/vm.args.eex`: every TCP socket is a BEAM port, and the default limit of 65,536 would cap the number
   of users. (The process limit, about a million, and ThousandIsland's default 100 × 16,384 connections are enough.)
 - Bandit's `read_timeout` is 75 s, longer than a user's maximum 70 s think time, so the server never closes an idle
   user's connection first.
@@ -145,7 +154,9 @@ TEST_DATABASE_URL=postgres://postgres:postgres@localhost/conduit_test mix test
 
 `mix test` drops and recreates its own database, loads [`schema.sql`](../../schema.sql) into it with `psql`, and runs
 each test in a rolled-back sandbox transaction. It needs a role that can create databases, and it hashes at cost 4
-to keep the suite fast.
+to keep the suite fast. `mix precommit` (as in `mix phx.new`) compiles with warnings as errors, drops unused locked
+deps, formats with Styler and runs the tests.
 
-Environment: `DATABASE_URL`, `JWT_SECRET` (required), `HOST` (127.0.0.1; `0.0.0.0` on the box), `PORT` (3000; `80` on
-the box), `DB_POOL_SIZE`. Binding port 80 needs `CAP_NET_BIND_SERVICE`, which the box's systemd unit grants.
+Environment: `DATABASE_URL`, `JWT_SECRET` (required), `HOST` (127.0.0.1; `0.0.0.0` on the box), `PORT` (3000; `80`
+on the box), `DB_POOL_SIZE` (3 per core, at most 90). `start.sh` only runs the release, so `bin/conduit start`
+behaves the same. Binding port 80 needs `CAP_NET_BIND_SERVICE`, which the box's systemd unit grants.

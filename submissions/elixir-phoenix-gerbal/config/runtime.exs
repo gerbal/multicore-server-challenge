@@ -3,9 +3,17 @@ import Config
 if config_env() == :prod do
   {:ok, ip} = "HOST" |> System.get_env("127.0.0.1") |> String.to_charlist() |> :inet.parse_address()
 
+  # The cores this node may run on (its CPU affinity), which start with fewer schedulers than that (rel/env.sh.eex).
+  cores =
+    with :unknown <- :erlang.system_info(:logical_processors_available),
+         do: :erlang.system_info(:logical_processors)
+
   config :conduit, Conduit.Repo,
     url: System.fetch_env!("DATABASE_URL"),
-    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
+    # One pool of 3 connections per core, capped at 90 (Postgres allows 100). Postgres shares the cores, and more
+    # backends than that only made every statement slower: on 8 threads at 34,000 users, 24 connections instead of 80
+    # took p95 373 -> 45 ms and Postgres CPU per request -14%; 16 starved the pool, 32 and 40 were already worse.
+    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE") || "#{min(3 * cores, 90)}"),
     # At saturation, let a query wait up to 200 ms for a connection (DBConnection's default is 50 ms) before the
     # pool starts shedding: latency has headroom under the 500 ms p95 limit, while every shed query is a 500.
     queue_target: 200

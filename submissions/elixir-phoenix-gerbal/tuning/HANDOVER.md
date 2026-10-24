@@ -45,21 +45,27 @@ front, so this submission does too.
 | `f8039c5` | Handover: batches 13-21, leaderboard calibration |
 | `fc264c6` | A list's capped count read with its page of ids (batch 22) |
 | `60e6e88` | Normal schedulers on 5/8 of the cores, `+S 5:5` (batch 23) |
+| `566695b` | Handover: batches 22-26 and the held score |
+| `9fdc40b`, `1ff1742` | Idiom review: race-safe writes (404 on a lost race, 204 for a delete that finds nothing), one whitespace policy, 18 more tests |
+| `2f8aca3` | `phoenix_ecto` |
+| `18a8607` | Styler as a `mix format` plugin |
+| `fac6cf2` | `PlainInteger` and the token's `sub` matched without a regex (a regex literal is recompiled per call on OTP 28+) |
+| (this commit) | What `mix phx.new` has and this lacked: `ConduitWeb.Telemetry`, dev code reloading, `:runtime_tools`, `mix precommit`; VM flags moved from `start.sh` into `rel/` and the pool default into `runtime.exs` (batch 27) |
 
 ### What the shipped config sets, and why
 
 | Setting | Where | Evidence |
 |---|---|---|
 | Compression off | `runtime.exs` | Strong: two interleaved runs each at 1,700 users, 1,816 → 2,026 req/s, p95 317 → 193 ms, errors 1.14% → 0% |
-| `+Q 1000000` | `start.sh` | Required: each user's socket is a port; the default 65,536 caps users. Verified the release boots with a 1,048,576 port limit |
+| `+Q 1000000` | `rel/vm.args.eex` | Required: each user's socket is a port; the default 65,536 caps users. Verified the release boots with a 1,048,576 port limit |
 | Listen backlog 8,192 | `runtime.exs` | Cheap headroom for direct connection bursts; the box's `somaxconn` is 65,535. Not load-tested |
 | GC after every keep-alive request | `runtime.exs` | Memory: 80 → 14 KB per idle connection (15,000 idle connections). CPU cost: see batch 4 below |
 | `read_timeout` 75 s | `runtime.exs` | Longer than the workload's 70 s maximum think time, so the server never closes a thinking user |
 | Ecto `queue_target` 200 ms | `runtime.exs` | Strong at real pacing: batch 8 (session 2). The default sheds queries as 500s at saturation |
 | Connection heap `min_heap_size: 4181` | `runtime.exs` | Strong: batches 11-12. ~35 KB more per connection |
 | Postgrex `decode_binary: :reference` | `Conduit.PostgrexTypes` | Strong: batches 11-12 |
-| Pool 3 per core, capped at 90 (24 on the box) | `start.sh` | Strong at real pacing: batches 19-21 |
-| Normal schedulers on 5/8 of the cores | `start.sh` | Moderate: lower app CPU per request in batches 19, 21 and 23 |
+| Pool 3 per core, capped at 90 (24 on the box) | `config/runtime.exs` | Strong at real pacing: batches 19-21 |
+| Normal schedulers on 5/8 of the cores | `rel/env.sh.eex` | Moderate: lower app CPU per request in batches 19, 21 and 23 |
 | A list's count in its ids statement | `Conduit.Blog` | Strong: batch 22 |
 | Filters walk join-table indexes; pages loaded by id list | `Conduit.Blog` | Strong: batches 15-16 |
 | Comments in one statement (lateral join) | `Conduit.Blog` | Strong: batch 18 |
@@ -322,6 +328,7 @@ Postgres 0.33-0.34 vs its 0.33. Postgres is at parity; the remaining gap is the 
 | 24 | `inet_backend: :socket` on the listener | 38,000 | app CPU +3.7%, p95 486 → 583 ms: no |
 | 25 | GC every 1 / 2 / 5 requests (with the 4,181-word heap) | 38,000 | every request stays best (p95 477 vs 556 / 536 ms) |
 | 26 | `+SDcpu 2:2` / busy-wait off (with `+S 5:5`) | 38,000 | 9,373 / 9,440 / 9,436 req/s: noise |
+| 27 | VM flags in `rel/` and the pool default in `runtime.exs` instead of `start.sh`, plus `ConduitWeb.Telemetry` and `:runtime_tools` | 37,000 | 9,611 → 9,593 req/s, app CPU 0.444 → 0.449 ms, runs overlapping: noise (same `-S 5:5 -Q 1000000` on the beam command line, 24 connections) |
 
 **Held score of `60e6e88` on this rig: 37,000** (probe at 39,000 failed on p95; 300 s hold at 37,000 passed,
 p95 457 ms, p99 633 ms, 0% errors, 9,221 req/s). With the calibration above (box ≈ 0.78 × rig), **≈ 29,000 on

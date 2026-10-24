@@ -1,19 +1,16 @@
 diff -ruN a/config/runtime.exs b/config/runtime.exs
---- a/config/runtime.exs	2026-10-24 05:08:15.203662932 -0400
-+++ b/config/runtime.exs	2026-10-24 05:08:15.219470964 -0400
-@@ -8,10 +8,21 @@
-     pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
+--- a/config/runtime.exs	2026-10-24 09:44:33.632680918 -0400
++++ b/config/runtime.exs	2026-10-24 09:44:33.647305834 -0400
+@@ -16,7 +16,18 @@
+     pool_size: String.to_integer(System.get_env("DB_POOL_SIZE") || "#{min(3 * cores, 90)}"),
      # At saturation, let a query wait up to 200 ms for a connection (DBConnection's default is 50 ms) before the
      # pool starts shedding: latency has headroom under the 500 ms p95 limit, while every shed query is a 500.
--    queue_target: 200,
+-    queue_target: 200
 +    # EXPERIMENT SWITCHES (tuning/patches/experiment-switches.patch; scratch copies only, never committed)
 +    queue_target: String.to_integer(System.get_env("XQ_TARGET", "200")),
 +    pool_count: String.to_integer(System.get_env("XPOOL_COUNT", "1")),
 +    queue_interval: String.to_integer(System.get_env("XQ_INTERVAL", "2000")),
 +    log: if(System.get_env("XREPO_LOG") == "false", do: false, else: :debug),
-     # Decoded text columns stay sub-binaries of the received packet instead of being copied; every request's heap is
-     # collected when it ends (see `gc_every_n_keepalive_requests` below), so nothing holds on to a packet for long.
--    types: Conduit.PostgrexTypes
 +    types: if(System.get_env("XPG_REF") == "false", do: Postgrex.DefaultTypes, else: Conduit.PostgrexTypes),
 +    parameters: (case System.get_env("XPG_PLAN") do
 +                   nil -> []
@@ -21,11 +18,10 @@ diff -ruN a/config/runtime.exs b/config/runtime.exs
 +                 end)
 +
 +  if System.get_env("XPHX_LOG") == "false", do: config(:phoenix, :logger, false)
-+  if System.get_env("XJSON") == "elixir", do: config(:phoenix, :json_library, JSON)
  
-   config :joken, default_signer: fetch_env!.("JWT_SECRET")
- 
-@@ -24,19 +35,22 @@
+   config :conduit, ConduitWeb.Endpoint,
+     server: true,
+@@ -25,19 +36,22 @@
        port: String.to_integer(System.get_env("PORT", "3000")),
        # Responses go out uncompressed: gzip is optional in SPEC.md and costs CPU on every response, which the box,
        # shared with Postgres, is shorter of than bandwidth.
@@ -51,29 +47,29 @@ diff -ruN a/config/runtime.exs b/config/runtime.exs
 +        genserver_options: [spawn_opt: [min_heap_size: String.to_integer(System.get_env("XMIN_HEAP", "4181"))]]
        ]
      ]
- end
+ 
 diff -ruN a/lib/conduit/accounts/token.ex b/lib/conduit/accounts/token.ex
---- a/lib/conduit/accounts/token.ex	2026-10-24 00:56:35.559970782 -0400
-+++ b/lib/conduit/accounts/token.ex	2026-10-24 05:08:15.208559785 -0400
-@@ -30,7 +30,13 @@
+--- a/lib/conduit/accounts/token.ex	2026-10-24 09:44:33.633682435 -0400
++++ b/lib/conduit/accounts/token.ex	2026-10-24 09:44:33.647804631 -0400
+@@ -35,7 +35,13 @@
    """
    @spec fetch_user_id(String.t()) :: {:ok, pos_integer()} | :error
    def fetch_user_id(token) do
--    with {:ok, %{"sub" => sub, "exp" => _exp}} <- verify_and_validate(token),
+-    case verify_and_validate(token) do
 +    claims =
 +      case :persistent_term.get(__MODULE__, nil) do
 +        nil -> verify_and_validate(token)
 +        signer -> verify_and_validate(token, signer)
 +      end
 +
-+    with {:ok, %{"sub" => sub, "exp" => _exp}} <- claims,
-          user_id when user_id > 0 <- String.to_integer(sub) do
-       {:ok, user_id}
-     else
++    case claims do
+       {:ok, %{"sub" => sub, "exp" => _exp}} -> {:ok, String.to_integer(sub)}
+       _invalid -> :error
+     end
 diff -ruN a/lib/conduit/application.ex b/lib/conduit/application.ex
---- a/lib/conduit/application.ex	2026-10-24 00:56:35.558787319 -0400
-+++ b/lib/conduit/application.ex	2026-10-24 05:08:15.208639127 -0400
-@@ -3,6 +3,10 @@
+--- a/lib/conduit/application.ex	2026-10-24 09:44:33.634951440 -0400
++++ b/lib/conduit/application.ex	2026-10-24 09:44:33.647840512 -0400
+@@ -4,6 +4,10 @@
  
    @impl true
    def start(_type, _args) do
@@ -81,6 +77,6 @@ diff -ruN a/lib/conduit/application.ex b/lib/conduit/application.ex
 +    if System.get_env("XSIGNER") == "prebuilt",
 +      do: :persistent_term.put(Conduit.Accounts.Token, Joken.Signer.parse_config(:default_signer))
 +
-     children = [Conduit.Repo, ConduitWeb.Endpoint]
+     children = [ConduitWeb.Telemetry, Conduit.Repo, ConduitWeb.Endpoint]
      Supervisor.start_link(children, strategy: :one_for_one, name: Conduit.Supervisor)
    end

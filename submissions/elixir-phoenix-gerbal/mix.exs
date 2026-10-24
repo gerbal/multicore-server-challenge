@@ -10,12 +10,17 @@ defmodule Conduit.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
       aliases: aliases(),
+      listeners: [Phoenix.CodeReloader],
       releases: [conduit: [include_executables_for: [:unix]]]
     ]
   end
 
   def application do
-    [mod: {Conduit.Application, []}, extra_applications: [:logger, :crypto]]
+    [mod: {Conduit.Application, []}, extra_applications: [:logger, :crypto, :runtime_tools]]
+  end
+
+  def cli do
+    [preferred_envs: [precommit: :test]]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
@@ -30,6 +35,8 @@ defmodule Conduit.MixProject do
       {:postgrex, "~> 0.22"},
       {:joken, "~> 2.7"},
       {:bcrypt_elixir, "~> 3.3"},
+      {:telemetry_metrics, "~> 1.1"},
+      {:telemetry_poller, "~> 1.3"},
       {:styler, "~> 1.12", only: [:dev, :test], runtime: false}
     ]
   end
@@ -38,7 +45,8 @@ defmodule Conduit.MixProject do
   # database instead of running migrations.
   defp aliases do
     [
-      test: ["ecto.drop --quiet", "ecto.create --quiet", "ecto.load --quiet --dump-path ../../schema.sql", "test"]
+      test: ["ecto.drop --quiet", "ecto.create --quiet", "ecto.load --quiet --dump-path ../../schema.sql", "test"],
+      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
     ]
   end
 end
