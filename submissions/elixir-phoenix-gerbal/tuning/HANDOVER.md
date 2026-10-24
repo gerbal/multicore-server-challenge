@@ -21,6 +21,10 @@ front, so this submission does too.
   pushed. GitHub CI hadn't reported on the PR by the end of this session; check it first.
 - Conformance: 197/197 on the dev seed (local Postgres 16; CI uses 18). `mix test`: 86 tests. `install.sh` and
   `build.sh` validated on a clean Ubuntu 24.04 container.
+- **Held score on the session-2 rig: 39,000 users** (`70ca35c`; ≈ 30,400 on the box with box ≈ 0.78 × rig, against
+  `elixir-raw-foovoo`'s 32,000 there). Started session 2 at 37,000. Per request at 39,000: app ~0.43 ms, Postgres
+  ~0.28 ms. Holds at 41,000 fail on the drift described under "Why holds drift": capacity falls ~6% over a hold as
+  the most-read articles gain comments and favorites and logins per second climb.
 - Commits on the branch, oldest first:
 
 | Commit | What |
@@ -52,7 +56,11 @@ front, so this submission does too.
 | `fac6cf2` | `PlainInteger` and the token's `sub` matched without a regex (a regex literal is recompiled per call on OTP 28+) |
 | `51ad1dd` | What `mix phx.new` has and this lacked: `ConduitWeb.Telemetry`, dev code reloading, `:runtime_tools`, `mix precommit`; VM flags moved from `start.sh` into `rel/` and the pool default into `runtime.exs` (batch 27) |
 | `c9952fe` | `perf.sh` + `perf-layers.py`: perf profiles at full load |
-| (this commit) | The viewer's flags as left joins; heaps and binaries on the `gf` allocator strategy (batches 28-29) |
+| `e63bd4d` | The viewer's flags as left joins; heaps and binaries on the `gf` allocator strategy (batches 28-29) |
+| `f06179b`, `47c2656`, `8ea5af4` | Held scores 38,000 and 39,000; `search.sh`; the Postgres profile; batch 32 |
+| `9df6969` | Tag names by primary key through a lateral join (batch 31): Postgres CPU per request -16% |
+| `cccd1a1` | Why holds drift; `hold-watch.sh` + `hold-watch.py` |
+| `70ca35c` | Comments select only the columns the API sends (batch 33); `late.py` |
 
 ### What the shipped config sets, and why
 
@@ -400,7 +408,17 @@ subquery as a map value in a `from` subquery is rejected), shipped in batch 31.
 After it: executor run 66% (B-tree descents 27%, subplans 16%), executor start 14% (initializing sort, nested-loop,
 merge- and hash-join nodes, partly the viewer left joins, which Postgres plans as sort + merge join and hash join),
 `GetCachedPlan` 8.7% (5% re-planning statements that keep custom plans, such as the list ids query with its
-`LIMIT`/`OFFSET`). Left: making the viewer joins plan as primary-key lookups too, and the custom-plan statements.
+`LIMIT`/`OFFSET`). Followed up in pgbench (viewer and ids passed as parameters, like Postgrex):
+
+- The viewer's flags as left joins (shipped), as `EXISTS` subqueries, or as lateral one-row lookups: 0.225 / 0.225 /
+  0.274 ms for an anonymous viewer, 0.235 / 0.233 / 0.279 for a median user (12 follows, 50 favorites), 0.247 /
+  0.249 / 0.277 for a 99th-percentile one (124 follows). The joins' sort/merge/hash setup costs what the subplans do;
+  nothing to gain.
+- Which statements keep custom plans (`pg_prepared_statements` after a dozen runs of each read path on one
+  connection): only the global and tag lists' ids queries, planned on every call (their generic plans are the bad
+  ones batch 14 forced); everything else switches to its generic plan after five runs. Ordering and paging the source
+  table directly instead of a subquery over it doesn't plan any faster (0.157 vs 0.154 ms global, 0.133 vs 0.133 ms
+  tag): Postgres pulls the subquery up for free. That planning is the price of a `LIMIT`/`OFFSET` given as parameters.
 
 **Held score of `9df6969` on this rig: 39,000** (`search.sh` from 41,000: probes 41,000 pass (p95 244 ms), 43,000
 fail (562 ms), 45,000 fail (48% errors, app 4.75 cores, Postgres 1.55); the hold at 41,000 failed on p95 527 ms and
@@ -428,6 +446,22 @@ climb towards their steady state (cost 10 is a rule; only the other costs can ma
 9.7% to 11.1%, and inside its query path row decoding doubles (7% → 14%, timestamps alone 5% → 10%), struct loading
 goes 14% → 22% and GC 19% → 27%, as threads grow. **Method**: 30 s windows measure the start of a hold, not its
 end; changes aimed at per-row costs need 5-minute runs compared on their last minute (the loadgen timeline has it).
+
+**Search of `70ca35c` (`search.sh` from 41,000)**: probes 41,000 and 43,000 pass (p95 143 / 439 ms), 45,000 fails
+(14% errors); holds at 43,000 (errors from minute 4, as the pool sheds queries past `queue_target`) and 41,000 (p95
+652 ms) fail, 39,000 passes (10,171 req/s, p95 214 ms, p99 270 ms). Still 39,000: a 60 s probe passes ~4,000 users
+above what holds for 5 minutes. To hold 41,000 the server needs ~5% more capacity late in a hold.
+
+### What's left (session 2's view)
+
+Inside idiomatic Phoenix + Ecto the remaining items are each ~1% or less: Joken's token config built once at boot
+(~1%), dropping `Plug.RequestId`/`Plug.Telemetry` (~0.7% each, generator defaults), cheaper timestamp decoding
+(custom Postgrex extension or Postgres-side formatting). Measured and rejected this session: `+IOt 2`, `+spp true`,
+`+sub true`, `pool_count: 2`, `+S 6:6`/`7:7`, bigger connection heaps, larger carriers, a super carrier, `EXISTS` or
+lateral forms of the viewer flags, flattening the ids queries further. The big remaining cost is the framework's
+per-query work: from the profiles, Ecto's planner and cache lookup are ~12% of the app's CPU and loading rows ~3%;
+raw SQL through `Ecto.Adapters.SQL.query` + `Repo.load` would recover most of that, at the price of the idiom this
+submission exists to show.
 
 ## Open questions, in the order I'd tackle them
 
