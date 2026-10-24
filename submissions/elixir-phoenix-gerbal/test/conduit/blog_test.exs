@@ -161,8 +161,11 @@ defmodule Conduit.BlogTest do
   describe "articlesCount" do
     # Inserted directly: 1,001 articles through create_article would make the test slow for nothing.
     setup %{alice: alice} do
-      rows = for i <- 1..1001, do: %{slug: "bulk-#{i}-#{alice.id}", title: "t", description: "d", body: "b"}
-      Repo.insert_all(Article, Enum.map(rows, &Map.put(&1, :author_id, alice.id)))
+      rows =
+        for i <- 1..1001,
+            do: %{slug: "bulk-#{i}-#{alice.id}", author_id: alice.id, title: "t", description: "d", body: "b"}
+
+      Repo.insert_all(Article, rows)
       :ok
     end
 

@@ -217,7 +217,8 @@ defmodule Conduit.Blog do
   @spec delete_article(String.t(), pos_integer()) :: :ok | {:error, :not_found | :forbidden}
   def delete_article(slug, user_id) do
     with {:ok, article} <- fetch_own_article(slug, user_id),
-         {:ok, _article} <- article |> Repo.delete(stale_error_field: :id) |> gone(),
+         # A concurrent delete that got there first leaves nothing to delete, which is still a 204 in SPEC.md.
+         {:ok, _article} <- Repo.delete(article, allow_stale: true),
          do: :ok
   end
 
@@ -306,7 +307,7 @@ defmodule Conduit.Blog do
          {:ok, comment} <-
            fetch(Repo.one(from c in Comment, join: a in assoc(c, :article), where: c.id == ^id and a.slug == ^slug)),
          :ok <- authorize(comment, user_id),
-         {:ok, _comment} <- comment |> Repo.delete(stale_error_field: :id) |> gone(),
+         {:ok, _comment} <- Repo.delete(comment, allow_stale: true),
          do: :ok
   end
 
@@ -330,9 +331,9 @@ defmodule Conduit.Blog do
     end
   end
 
-  # A row a write read first can be deleted by another request before the write lands: the article under a new
-  # favorite or comment, or the article or comment being edited or deleted. The write then breaks a foreign key or
-  # finds its row stale, and gets the 404 it would have got a moment later. Validation errors stay a changeset.
+  # The article a write read first can be deleted by another request before the write lands: the one under a new
+  # favorite or comment, or the one being edited. The write then breaks a foreign key or finds its row stale, and gets
+  # the 404 it would have got a moment later. Validation errors stay a changeset.
   defp gone({:error, %Ecto.Changeset{errors: errors}} = error) do
     if Enum.any?(errors, fn {_field, {_message, info}} -> info[:stale] || info[:constraint] == :foreign end),
       do: {:error, :not_found},

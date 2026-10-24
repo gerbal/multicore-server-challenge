@@ -4,8 +4,8 @@
 
 A baseline written the way a Phoenix team would write it: contexts, Ecto schemas and changesets, composable Ecto
 queries, JSON view modules and an ExUnit suite. It's a reference point for idiomatic Elixir: the tuning is
-configuration, VM flags and the shape of a few Ecto queries, each listed below with the measurement behind it,
-rather than code a Phoenix team wouldn't write.
+configuration, VM flags and the shape of a few Ecto queries, listed below with the measurements behind the ones
+that moved the numbers, rather than code a Phoenix team wouldn't write.
 
 It serves the internet itself (`0.0.0.0:80`), as most Phoenix deployments do with Bandit, rather than behind Nginx.
 
@@ -37,11 +37,11 @@ Exact versions and hashes are in `mix.lock`. `install.sh` is the same toolchain 
 Input is validated by changesets: required, non-empty string fields (only whitespace still counts as non-empty, as
 in SPEC.md), passwords of at most 72 bytes (bcrypt ignores the rest), unique usernames and emails through
 `unique_constraint`, and list paging through a schemaless changeset. Changeset errors become RealWorld's
-`{"errors": {"body": [...]}}` with messages like `"email has already been taken"`. A write that loses a race with a
-delete (a favorite or comment on an article deleted meanwhile, or two deletes at once) is the 404 it would have been
-a moment later, through `foreign_key_constraint` and `stale_error_field`, not a 500. Anything that still raises
-goes through phoenix_ecto, as in a `mix phx.new` app: a slug or username that isn't UTF-8, which Postgres rejects,
-is a 400 like a query string that isn't.
+`{"errors": {"body": [...]}}` with messages like `"email has already been taken"`. A write that loses a race with a delete is
+what it would have been a moment later, not a 500: a favorite, comment or edit on an article deleted meanwhile is a
+404 (`foreign_key_constraint`, `stale_error_field`), and a delete that finds its row already gone is the 204 SPEC.md
+gives it (`allow_stale`). Anything that still raises goes through phoenix_ecto, as in a `mix phx.new` app: a slug or
+username that isn't UTF-8, which Postgres rejects, is a 400 like a query string that isn't.
 
 ## Queries
 
@@ -125,7 +125,8 @@ Serving directly means one keep-alive connection per user, tens of thousands of 
   per-request GC just shrank; the second is safe because that GC runs after every request. Together, interleaved on
   the full seed (6,000 users, 8 threads, 4 runs each): 7,139 → 7,381 req/s, p95 152 → 108 ms, 6% less app CPU per
   request, every run faster. The price is memory: ~35 KB more per connection, 918 MB → 1,863 MB at 27,000 users.
-- `limit` and `offset` must be plain digits (`Conduit.Types.PlainInteger`); Ecto's `:integer` would also take `+5`.
+- `limit`, `offset` and comment ids must be plain digits (`Conduit.Types.PlainInteger`); Ecto's `:integer` would
+  also take `+5`.
 - Logger level `:warning` in prod.
 
 ## Behavior that differs from the reference

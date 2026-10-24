@@ -1,8 +1,8 @@
 defmodule Conduit.Types.PlainInteger do
   @moduledoc """
-  A non-negative integer that casts only from plain decimal digits that fit in a bigint.
+  A non-negative integer that casts only from plain decimal digits (leading zeros allowed) that fit in a bigint.
 
-  Ecto's `:integer` also accepts strings like `"+5"`; query parameters here must be digits and nothing else.
+  Ecto's `:integer` also accepts strings like `"+5"`; query parameters and ids here must be digits and nothing else.
   """
   use Ecto.Type
 
@@ -15,9 +15,12 @@ defmodule Conduit.Types.PlainInteger do
   def cast(value) when is_integer(value) and value in 0..@max, do: {:ok, value}
 
   def cast(value) when is_binary(value) do
-    if value =~ ~r/\A[0-9]{1,19}\z/ and String.to_integer(value) <= @max,
-      do: {:ok, String.to_integer(value)},
-      else: :error
+    with true <- value =~ ~r/\A[0-9]+\z/,
+         n when n <= @max <- String.to_integer(value) do
+      {:ok, n}
+    else
+      _ -> :error
+    end
   end
 
   def cast(_value), do: :error

@@ -7,6 +7,7 @@ defmodule Conduit.Types.PlainIntegerTest do
     assert {:ok, 0} = PlainInteger.cast("0")
     assert {:ok, 25} = PlainInteger.cast("25")
     assert {:ok, 9_223_372_036_854_775_807} = PlainInteger.cast("9223372036854775807")
+    assert {:ok, 5} = PlainInteger.cast("00000000000000000005")
   end
 
   test "rejects signs, spaces, decimals and anything too big for a bigint" do

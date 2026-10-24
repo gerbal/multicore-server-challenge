@@ -2,8 +2,9 @@ import Config
 
 config :conduit, ecto_repos: [Conduit.Repo]
 
-# Decoded text columns stay sub-binaries of the received packet instead of being copied. Every request's heap is
-# collected when it ends (`gc_every_n_keepalive_requests` in config/runtime.exs), so nothing holds a packet for long.
+# Decoded text columns stay sub-binaries of the received packet instead of being copied. In prod every request's heap
+# is collected when it ends (`gc_every_n_keepalive_requests` in config/runtime.exs), so nothing holds a packet for
+# long; elsewhere a packet can outlive its request, which only costs memory.
 config :conduit, Conduit.Repo, types: Conduit.PostgrexTypes
 
 config :conduit, ConduitWeb.Endpoint,
