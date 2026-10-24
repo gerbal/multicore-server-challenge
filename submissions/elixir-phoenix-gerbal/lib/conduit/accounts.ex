@@ -3,7 +3,8 @@ defmodule Conduit.Accounts do
 
   import Ecto.Changeset
 
-  alias Conduit.Accounts.{Token, User}
+  alias Conduit.Accounts.Token
+  alias Conduit.Accounts.User
   alias Conduit.Repo
 
   @doc "Gets a user by id, or nil."

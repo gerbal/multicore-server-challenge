@@ -1,8 +1,10 @@
 defmodule Conduit.BlogTest do
   use Conduit.DataCase, async: true
 
-  alias Conduit.{Blog, Profiles}
-  alias Conduit.Blog.{Article, Comment}
+  alias Conduit.Blog
+  alias Conduit.Blog.Article
+  alias Conduit.Blog.Comment
+  alias Conduit.Profiles
 
   setup do
     %{alice: user_fixture(), bob: user_fixture(), elixir: unique_tag("elixir"), phoenix: unique_tag("phoenix")}
@@ -189,7 +191,7 @@ defmodule Conduit.BlogTest do
 
       assert updated.slug == "new-title-#{article.id}"
       assert updated.body == article.body
-      assert DateTime.compare(updated.updated_at, article.updated_at) == :gt
+      assert DateTime.after?(updated.updated_at, article.updated_at)
     end
 
     test "only the author may edit or delete", %{bob: bob, article: article} do
@@ -241,7 +243,7 @@ defmodule Conduit.BlogTest do
 
       rows =
         for i <- 1..101 do
-          created_at = DateTime.add(base, div(101 - i, 2), :second)
+          created_at = DateTime.shift(base, second: div(101 - i, 2))
           %{article_id: article.id, author_id: bob.id, body: "c#{i}", created_at: created_at, updated_at: created_at}
         end
 

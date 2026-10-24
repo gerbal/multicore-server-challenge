@@ -1,4 +1,5 @@
 defmodule Conduit.Blog.Tag do
+  @moduledoc false
   use Ecto.Schema
 
   @type t :: %__MODULE__{}

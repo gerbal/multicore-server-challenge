@@ -10,7 +10,10 @@ defmodule Conduit.Blog do
   import Ecto.Query
 
   alias Conduit.Accounts.User
-  alias Conduit.Blog.{Article, Comment, Favorite, Tag}
+  alias Conduit.Blog.Article
+  alias Conduit.Blog.Comment
+  alias Conduit.Blog.Favorite
+  alias Conduit.Blog.Tag
   alias Conduit.Profiles
   alias Conduit.Profiles.Follow
   alias Conduit.Repo

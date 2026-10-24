@@ -1,5 +1,5 @@
 defmodule ConduitWeb.ErrorJSON do
-  @moduledoc "Error bodies, in RealWorld's `{\"errors\": {\"body\": [...]}}` shape."
+  @moduledoc ~s(Error bodies, in RealWorld's `{"errors": {"body": [...]}}` shape.)
 
   def error(%{message: message}), do: %{errors: %{body: [message]}}
 

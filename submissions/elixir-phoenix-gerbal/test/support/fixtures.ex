@@ -1,7 +1,8 @@
 defmodule Conduit.Fixtures do
   @moduledoc "Builds users and articles through the public context functions."
 
-  alias Conduit.{Accounts, Blog}
+  alias Conduit.Accounts
+  alias Conduit.Blog
 
   def unique_username, do: "user#{System.unique_integer([:positive])}"
 

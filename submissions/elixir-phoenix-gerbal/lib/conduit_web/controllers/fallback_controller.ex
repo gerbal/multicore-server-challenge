@@ -7,7 +7,8 @@ defmodule ConduitWeb.FallbackController do
   """
   use Phoenix.Controller, formats: [:json]
 
-  alias ConduitWeb.{ChangesetJSON, ErrorJSON}
+  alias ConduitWeb.ChangesetJSON
+  alias ConduitWeb.ErrorJSON
 
   def call(conn, {:error, %Ecto.Changeset{} = changeset}) do
     conn

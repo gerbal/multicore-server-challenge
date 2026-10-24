@@ -1,6 +1,7 @@
 defmodule ConduitWeb.CommentJSON do
   alias Conduit.Blog.Comment
-  alias ConduitWeb.{ProfileJSON, Timestamps}
+  alias ConduitWeb.ProfileJSON
+  alias ConduitWeb.Timestamps
 
   def index(%{comments: comments}), do: %{comments: for(comment <- comments, do: data(comment))}
 

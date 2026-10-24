@@ -1,6 +1,7 @@
 defmodule ConduitWeb.ArticleJSON do
   alias Conduit.Blog.Article
-  alias ConduitWeb.{ProfileJSON, Timestamps}
+  alias ConduitWeb.ProfileJSON
+  alias ConduitWeb.Timestamps
 
   @doc "A page of articles. Lists leave out each article's body."
   def index(%{articles: articles, count: count}) do

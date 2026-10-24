@@ -59,7 +59,7 @@ defmodule ConduitWeb.UserControllerTest do
     end
 
     test "returns the current user with the presented token", %{conn: conn, user: user} do
-      [token] = get_req_header(conn, "authorization") |> Enum.map(&String.replace_prefix(&1, "Token ", ""))
+      [token] = conn |> get_req_header("authorization") |> Enum.map(&String.replace_prefix(&1, "Token ", ""))
 
       assert %{"user" => %{"username" => username, "token" => ^token}} =
                conn |> get(~p"/api/user") |> json_response(200)

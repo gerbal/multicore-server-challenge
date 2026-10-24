@@ -1,4 +1,5 @@
 defmodule Conduit.Profiles.Follow do
+  @moduledoc false
   use Ecto.Schema
 
   alias Conduit.Accounts.User

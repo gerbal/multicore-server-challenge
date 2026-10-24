@@ -1,16 +1,14 @@
 import Config
 
 if config_env() == :prod do
+  {:ok, ip} = "HOST" |> System.get_env("127.0.0.1") |> String.to_charlist() |> :inet.parse_address()
+
   config :conduit, Conduit.Repo,
     url: System.fetch_env!("DATABASE_URL"),
     pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
     # At saturation, let a query wait up to 200 ms for a connection (DBConnection's default is 50 ms) before the
     # pool starts shedding: latency has headroom under the 500 ms p95 limit, while every shed query is a 500.
     queue_target: 200
-
-  config :joken, default_signer: System.fetch_env!("JWT_SECRET")
-
-  {:ok, ip} = System.get_env("HOST", "127.0.0.1") |> String.to_charlist() |> :inet.parse_address()
 
   config :conduit, ConduitWeb.Endpoint,
     server: true,
@@ -34,4 +32,6 @@ if config_env() == :prod do
         genserver_options: [spawn_opt: [min_heap_size: 4181]]
       ]
     ]
+
+  config :joken, default_signer: System.fetch_env!("JWT_SECRET")
 end

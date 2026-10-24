@@ -29,7 +29,8 @@ defmodule Conduit.MixProject do
       {:ecto_sql, "~> 3.14"},
       {:postgrex, "~> 0.22"},
       {:joken, "~> 2.7"},
-      {:bcrypt_elixir, "~> 3.3"}
+      {:bcrypt_elixir, "~> 3.3"},
+      {:styler, "~> 1.12", only: [:dev, :test], runtime: false}
     ]
   end
 

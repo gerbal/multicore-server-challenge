@@ -2,15 +2,17 @@ defmodule Conduit.DataCase do
   @moduledoc "Tests that use the database, each inside a transaction that is rolled back afterwards."
   use ExUnit.CaseTemplate
 
+  alias Ecto.Adapters.SQL.Sandbox
+
   using do
     quote do
-      alias Conduit.Repo
-
+      import Conduit.DataCase
+      import Conduit.Fixtures
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
-      import Conduit.DataCase
-      import Conduit.Fixtures
+
+      alias Conduit.Repo
     end
   end
 
@@ -20,8 +22,8 @@ defmodule Conduit.DataCase do
   end
 
   def setup_sandbox(tags) do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Conduit.Repo, shared: not tags[:async])
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+    pid = Sandbox.start_owner!(Conduit.Repo, shared: not tags[:async])
+    on_exit(fn -> Sandbox.stop_owner(pid) end)
   end
 
   @doc "A changeset's errors as `%{field: [message]}`, with interpolated messages."

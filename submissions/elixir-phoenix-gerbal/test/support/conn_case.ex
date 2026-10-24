@@ -4,20 +4,20 @@ defmodule ConduitWeb.ConnCase do
 
   using do
     quote do
-      @endpoint ConduitWeb.Endpoint
-
       use ConduitWeb, :verified_routes
 
-      import Plug.Conn
-      import Phoenix.ConnTest
       import Conduit.Fixtures
       import ConduitWeb.ConnCase
+      import Phoenix.ConnTest
+      import Plug.Conn
+
+      @endpoint ConduitWeb.Endpoint
     end
   end
 
   setup tags do
     Conduit.DataCase.setup_sandbox(tags)
-    {:ok, conn: Phoenix.ConnTest.build_conn() |> Plug.Conn.put_req_header("content-type", "application/json")}
+    {:ok, conn: Plug.Conn.put_req_header(Phoenix.ConnTest.build_conn(), "content-type", "application/json")}
   end
 
   @doc "Sends requests as `user`."

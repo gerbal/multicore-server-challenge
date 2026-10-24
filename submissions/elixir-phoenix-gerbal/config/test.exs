@@ -1,5 +1,8 @@
 import Config
 
+# Hashing at cost 10 in every test that registers a user would make the suite slow for no benefit.
+config :bcrypt_elixir, log_rounds: 4
+
 # The tests load ../../schema.sql into their own database (see the `test` alias in mix.exs) and run each test in a
 # rolled-back sandbox transaction.
 config :conduit, Conduit.Repo,
@@ -10,8 +13,5 @@ config :conduit, Conduit.Repo,
 config :conduit, ConduitWeb.Endpoint, http: [port: 4002], server: false
 
 config :joken, default_signer: "test-secret"
-
-# Hashing at cost 10 in every test that registers a user would make the suite slow for no benefit.
-config :bcrypt_elixir, log_rounds: 4
 
 config :logger, level: :warning

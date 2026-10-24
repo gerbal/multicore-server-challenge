@@ -1,5 +1,7 @@
 defmodule Conduit.Blog.Comment do
+  @moduledoc false
   use Ecto.Schema
+
   import Ecto.Changeset
 
   alias Conduit.Accounts.User
