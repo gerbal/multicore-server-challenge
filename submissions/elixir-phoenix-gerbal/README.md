@@ -79,8 +79,14 @@ The queries are Ecto's, not SPEC.md's SQL strings, but they keep the reference S
 ## Multicore model
 
 One BEAM node with the default schedulers (one per core): Bandit runs a process per connection, and bcrypt's NIF
-runs on the dirty CPU schedulers. One Ecto pool of `DB_POOL_SIZE` connections, 10 per core capped at 90 (80 on the
-8-core box), like the Go example. Ecto prepares and caches each query per connection.
+runs on the dirty CPU schedulers. One Ecto pool of `DB_POOL_SIZE` connections, 3 per core capped at 90 (24 on the
+8-core box). Ecto prepares and caches each query per connection.
+
+The pool is small on purpose: Postgres runs on the same cores, and more backends than that only made every
+statement slower. At real pacing on 8 threads (34,000 users, interleaved) 24 connections instead of 80 (10 per core,
+as in the Go example) took p95 373 → 45 ms, p99 478 → 86 ms and Postgres CPU per request -14%. At 38,000 users 16
+starved the pool and 32 and 40 had errors where 24 had none. Fewer schedulers (`+S 5:5` or `6:6`) helped with 80
+connections but changed nothing with 24.
 
 ## Settings beyond the defaults
 
