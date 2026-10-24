@@ -73,8 +73,12 @@ The queries are Ecto's, not SPEC.md's SQL strings, but they keep the reference S
   (`left_lateral_join: c in subquery(newest)` with `parent_as(:article)`), so an article without comments is a row
   with a nil comment and an unknown slug is no row (404). Every `Repo` call costs a pool checkout, a planner pass and
   a round trip; dropping the separate slug lookup on the most frequent request took 8,651 → 8,900 req/s (7,500
-  users, interleaved), 3.5% less app CPU per request. The favorite count and the viewer's `favorited` and `following` are correlated subqueries in the select
-  (`exists(subquery(...))` with `parent_as`), so they run once per article on the page.
+  users, interleaved), 3.5% less app CPU per request.
+- The favorite count is a correlated subquery in the select (`subquery` with `parent_as`), so it runs once per
+  article on the page. The viewer's `favorited` and `following` are left joins on `favorites` and `follows` by their
+  primary keys (at most one row each) rather than `exists(subquery(...))`: Ecto plans every subquery again on each
+  call before it looks up its query cache, and a perf profile put 8% of the CPU in planning subqueries. At real
+  pacing, interleaved, the joins took app CPU per request down 3.1% at 37,000 users and 1.8% at 39,000.
 - The feed takes each followed author's newest `limit + offset` articles through a lateral join and merges them,
   so it walks `articles_author_idx` instead of sorting everything the followed authors ever wrote.
 - `articlesCount` is `count(*)` over a subquery limited to 1,000 rows. It rides along with the page's ids as an
@@ -136,6 +140,10 @@ Serving directly means one keep-alive connection per user, tens of thousands of 
   request, every run faster. The price is memory: ~35 KB more per connection, 918 MB → 1,863 MB at 27,000 users.
 - `limit`, `offset` and comment ids must be plain digits (`Conduit.Types.PlainInteger`); Ecto's `:integer` would
   also take `+5`.
+- Process heaps and binaries use the "good fit" allocation strategy (`+MHas gf +MBas gf` in `rel/vm.args.eex`)
+  rather than the default address-order first fit, which also turns off carrier migration between schedulers. A
+  perf profile at load put a tenth of the CPU in the memory allocators. At real pacing, interleaved, gf took app CPU
+  per request down ~3% at both 37,000 and 39,000 users, and peak memory at 37,000 users 2,474 → 2,237 MB.
 - Logger level `:warning` in prod.
 
 ## Behavior that differs from the reference

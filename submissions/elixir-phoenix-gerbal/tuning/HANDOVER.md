@@ -50,7 +50,9 @@ front, so this submission does too.
 | `2f8aca3` | `phoenix_ecto` |
 | `18a8607` | Styler as a `mix format` plugin |
 | `fac6cf2` | `PlainInteger` and the token's `sub` matched without a regex (a regex literal is recompiled per call on OTP 28+) |
-| (this commit) | What `mix phx.new` has and this lacked: `ConduitWeb.Telemetry`, dev code reloading, `:runtime_tools`, `mix precommit`; VM flags moved from `start.sh` into `rel/` and the pool default into `runtime.exs` (batch 27) |
+| `51ad1dd` | What `mix phx.new` has and this lacked: `ConduitWeb.Telemetry`, dev code reloading, `:runtime_tools`, `mix precommit`; VM flags moved from `start.sh` into `rel/` and the pool default into `runtime.exs` (batch 27) |
+| `c9952fe` | `perf.sh` + `perf-layers.py`: perf profiles at full load |
+| (this commit) | The viewer's flags as left joins; heaps and binaries on the `gf` allocator strategy (batches 28-29) |
 
 ### What the shipped config sets, and why
 
@@ -70,6 +72,8 @@ front, so this submission does too.
 | Filters walk join-table indexes; pages loaded by id list | `Conduit.Blog` | Strong: batches 15-16 |
 | Comments in one statement (lateral join) | `Conduit.Blog` | Strong: batch 18 |
 | Elixir's built-in `JSON` | `config.exs` | Strong: batch 17 |
+| Heaps and binaries on the `gf` allocation strategy | `rel/vm.args.eex` | Strong: batches 28-29 (app CPU -3% at 37k and 39k), less memory |
+| The viewer's `favorited`/`following` as left joins | `Conduit.Blog` | Moderate: batches 28-29 (app CPU -3.1% / -1.8%); with gf -4.7% at 39k |
 | Tag names in the article query | `Conduit.Blog` | Strong: see batch 4. One round trip and Ecto's preloader removed per article list/page |
 | Only the columns the JSON sends | `Conduit.Blog` | Strong: batch 6 (session 2). Lists skip `body`, authors skip `email`/`password_hash` |
 
@@ -329,6 +333,8 @@ Postgres 0.33-0.34 vs its 0.33. Postgres is at parity; the remaining gap is the 
 | 25 | GC every 1 / 2 / 5 requests (with the 4,181-word heap) | 38,000 | every request stays best (p95 477 vs 556 / 536 ms) |
 | 26 | `+SDcpu 2:2` / busy-wait off (with `+S 5:5`) | 38,000 | 9,373 / 9,440 / 9,436 req/s: noise |
 | 27 | VM flags in `rel/` and the pool default in `runtime.exs` instead of `start.sh`, plus `ConduitWeb.Telemetry` and `:runtime_tools` | 37,000 | 9,611 → 9,593 req/s, app CPU 0.444 → 0.449 ms, runs overlapping: noise (same `-S 5:5 -Q 1000000` on the beam command line, 24 connections) |
+| 28 | From the perf profile: viewer flags as left joins (`joins`); allocators `gf`, 20 MB carriers (`mbcs`), a 4 GB super carrier (`scs`) | 37,000 | base 9,555 req/s, app 0.447 ms, p95 193 ms; joins 9,797 / 0.433 / 45; gf 9,729 / 0.434 / 66; mbcs 9,646 / 0.443; scs 9,698 / 0.442. joins and gf won both runs: **shipped**; mbcs and scs noise. (`+MHacul 0` alone turns into gf.) |
+| 29 | joins, gf and both, base mid-batch | 39,000 | base 9,649 req/s, app 0.448 ms, p95 519 ms; joins 9,775 / 0.440 / 406; gf 9,806 / 0.434 / 353; both 9,901 / 0.427 / 371. joins' Postgres saving in batch 28 (-4%) didn't repeat. Peak RSS at 37,000: base 2,474 MB, gf 2,237, both 2,300 |
 
 **Held score of `60e6e88` on this rig: 37,000** (probe at 39,000 failed on p95; 300 s hold at 37,000 passed,
 p95 457 ms, p99 633 ms, 0% errors, 9,221 req/s). With the calibration above (box ≈ 0.78 × rig), **≈ 29,000 on
@@ -367,7 +373,9 @@ Ecto's cache lookup costs real time in ETS hashing and copying, not only in the 
 the rules: allocator flags (`+M...` strategies and carrier sizes, a flags-only batch); fewer `subquery` expressions per
 article query (the viewer's `favorited`/`following` as left joins on the primary keys rather than `exists(subquery)`),
 which cuts the planner's per-call subquery planning; and nothing obvious for GC beyond the heap and GC-interval dials
-already measured (batches 11, 23, 25).
+already measured (batches 11, 23, 25). Batches 28-29 tried the first two: the `gf` allocator strategy and the left
+joins both shipped (app CPU about -3% each, -4.7% together at 39,000 users); bigger carriers and a super carrier
+were noise. A held-score search with both hasn't been run yet.
 
 ## Open questions, in the order I'd tackle them
 

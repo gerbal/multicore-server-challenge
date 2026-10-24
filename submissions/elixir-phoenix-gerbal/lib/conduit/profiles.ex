@@ -37,13 +37,9 @@ defmodule Conduit.Profiles do
     end
   end
 
-  @doc """
-  A subquery for `exists/1`: whether `viewer_id` follows the user bound as `:author` in the parent query.
-
-  Anonymous viewers (nil) are queried as id 0, which no user has, so they follow no one.
-  """
-  @spec follows_author(pos_integer() | nil) :: Ecto.Query.t()
-  def follows_author(viewer_id) do
+  # A subquery for `exists/1`: whether `viewer_id` follows the user bound as `:author` in the parent query. Anonymous
+  # viewers (nil) are queried as id 0, which no user has, so they follow no one.
+  defp follows_author(viewer_id) do
     from f in Follow, where: f.follower_id == ^(viewer_id || 0) and f.followee_id == parent_as(:author).id
   end
 

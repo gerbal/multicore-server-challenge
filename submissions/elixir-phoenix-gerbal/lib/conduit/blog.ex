@@ -14,7 +14,6 @@ defmodule Conduit.Blog do
   alias Conduit.Blog.Comment
   alias Conduit.Blog.Favorite
   alias Conduit.Blog.Tag
-  alias Conduit.Profiles
   alias Conduit.Profiles.Follow
   alias Conduit.Repo
   alias Conduit.Types.PlainInteger
@@ -147,7 +146,6 @@ defmodule Conduit.Blog do
   # Tag names are aggregated in the same query rather than preloaded, which would cost a second round trip.
   defp articles_query(viewer_id, fields \\ @article_fields) do
     favorites = from f in Favorite, where: f.article_id == parent_as(:article).id
-    favorited = from f in favorites, where: f.user_id == ^(viewer_id || 0)
 
     tag_names =
       from t in Tag,
@@ -160,12 +158,17 @@ defmodule Conduit.Blog do
       as: :article,
       join: u in assoc(a, :author),
       as: :author,
+      # The viewer's favorite of the article and follow of its author, if any: at most one row each (primary keys).
+      left_join: vf in Favorite,
+      on: vf.article_id == a.id and vf.user_id == ^(viewer_id || 0),
+      left_join: vfo in Follow,
+      on: vfo.followee_id == u.id and vfo.follower_id == ^(viewer_id || 0),
       select:
         merge(struct(a, ^fields), %{
           tag_list: subquery(tag_names),
           favorites_count: subquery(from f in favorites, select: count()),
-          favorited: exists(subquery(favorited)),
-          author: merge(struct(u, @author_fields), %{following: exists(subquery(Profiles.follows_author(viewer_id)))})
+          favorited: not is_nil(vf.user_id),
+          author: merge(struct(u, @author_fields), %{following: not is_nil(vfo.follower_id)})
         })
   end
 
@@ -275,9 +278,10 @@ defmodule Conduit.Blog do
         on: true,
         left_join: u in User,
         on: u.id == c.author_id,
-        as: :author,
+        left_join: fo in Follow,
+        on: fo.followee_id == u.id and fo.follower_id == ^(viewer_id || 0),
         order_by: [desc: c.created_at, desc: c.id],
-        select: {c, struct(u, @author_fields), exists(subquery(Profiles.follows_author(viewer_id)))}
+        select: {c, struct(u, @author_fields), not is_nil(fo.follower_id)}
 
     case Repo.all(query) do
       [] ->
