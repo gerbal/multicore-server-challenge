@@ -406,9 +406,27 @@ fail (562 ms), 45,000 fail (48% errors, app 4.75 cores, Postgres 1.55); the hold
 the hold at 39,000 passed: 10,118 req/s, p95 252 ms, p99 302 ms, 0% errors). ≈ 30,400 on the box. At overload the
 app saturates while Postgres has room, so batch 32 retried the scheduler count: `+S 5:5` stays.
 
-Note that these 30 s windows pass easily at 41,000 users (p95 ~100 ms in batch 32) while the 5-minute hold there
-failed at 527 ms: whatever degrades a long hold (checkpoints, autovacuum, connection churn, heap growth) is the next
-thing to look at, since the score is decided by the hold.
+### Why holds drift (the score is decided by the 5-minute hold)
+
+30 s windows pass easily at 41,000 users (p95 ~100 ms in batch 32) while the 5-minute hold there failed at 527 ms.
+The loadgen's per-second timeline (`timeline` in its JSON) shows every hold drifting, not spiking: at 41,000 users
+throughput slides 10,600 → 9,930 req/s and p95 climbs 130 → 550 ms over the window; the passing 39,000 hold slid
+10,356 → 9,783 req/s, p95 15 → 337 ms. `hold-watch.sh` (a sampler every 5 s next to one `bench.sh` run) +
+`hold-watch.py` (joined with the timeline) put it on both sides: between t=104 s and t=370 s app CPU per request
+went 0.431 → 0.450 ms (+4%) and Postgres 0.281 → 0.314 ms (+12%), with app and Postgres CPU both at their ceilings.
+Not bloat or checkpoints: dead rows stay in the hundreds, autovacuum ran 1-4 times per hot table, no checkpoint in
+the window, 98.5-100% of pages all-visible afterwards. It's the data: the seed's newest 1,000 articles, which the
+loadgen reads most, end the run with 15.6 comments on average (max 443; the seed caps at 200, mean 5) and 24
+favorites (max 635), so comment lists near their 100 cap and favorite counts walk more entries. The box run drifts
+the same way, so per-comment and per-favorite costs matter more to the score than 30 s profiles suggest.
+
+A perf profile of a whole hold (`perf.sh` with `RAMP=60 MEASURE=300 SAMPLE_SECONDS=290 FREQ=99`, then
+`perf script --time 0%-10%` and `90%-100%`) splits the drift in two. bcrypt goes from 9.6% to 11.5% of the BEAM's
+samples: sessions start with a login, and while the run settles more sessions end and restart, so logins per second
+climb towards their steady state (cost 10 is a rule; only the other costs can make room). The comment list goes from
+9.7% to 11.1%, and inside its query path row decoding doubles (7% → 14%, timestamps alone 5% → 10%), struct loading
+goes 14% → 22% and GC 19% → 27%, as threads grow. **Method**: 30 s windows measure the start of a hold, not its
+end; changes aimed at per-row costs need 5-minute runs compared on their last minute (the loadgen timeline has it).
 
 ## Open questions, in the order I'd tackle them
 
@@ -516,6 +534,7 @@ To get close to the benchmark box (8 vCPU, 16 GB, Ubuntu 24.04, Postgres 18):
 | `make-variant.sh` | Copies the submission to a scratch dir, applies patches, builds it, so variants never touch the tree |
 | `patches/experiment-switches.patch` | Env switches for experiments: `XPOOL_COUNT`, `XQ_TARGET`, `XQ_INTERVAL`, `XREPO_LOG`, `XPHX_LOG`, `XGC_EVERY`, `XLOG_EXC`, `XMIN_HEAP`, `XPG_REF` (`false` = default types), `XSIGNER=prebuilt`. Never commit it applied |
 | `profile.sh` + `prof.exs` | `tprof` call-time profile of the prod build under load |
+| `hold-watch.sh` + `hold-watch.py` | One `bench.sh` run (a hold by default) with BEAM/Postgres CPU, RSS and per-table stats sampled every 5 s, joined with the loadgen's timeline: what changes as a hold degrades |
 | `search.sh` | The scoring search's probe/bisect/hold shape from a starting guess, through `bench.sh`; prints the held score |
 | `perf.sh` + `perf-layers.py` | Linux `perf` profile of one `bench.sh` run at full load, from a helper container (seccomp blocks `perf` in the bench container); flame graph, flat profile, per-layer and per-caller summaries. Needs the `localhost/perf-tools` image (a Fedora toolbox with `perf` and `js-d3-flame-graph`, `podman commit`ed) |
 | `idle-memory.sh` + `idle_conns.py` | Memory per idle keep-alive connection |

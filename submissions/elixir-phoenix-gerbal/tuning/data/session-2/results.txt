@@ -278,3 +278,4 @@ b32-s7-1               users=41000  req/s=10784.6  p50=27.2    p95=89.0    p99=1
 b32-s7-2               users=41000  req/s=10774.2  p50=20.1    p95=88.1    p99=116.4   err%=0.00   app_ms/req=0.428 pg_ms/req=0.271 app_cores=4.61 pg_cores=2.92
 b32-s5-2               users=41000  req/s=10702.7  p50=58.2    p95=139.4   p99=186.6   err%=0.00   app_ms/req=0.418 pg_ms/req=0.270 app_cores=4.47 pg_cores=2.89
 b32-s6-2               users=41000  req/s=10784.2  p50=21.0    p95=84.3    p99=114.6   err%=0.00   app_ms/req=0.427 pg_ms/req=0.270 app_cores=4.60 pg_cores=2.91
+w1                     users=41000  req/s=10048.5  p50=270.8   p95=685.6   p99=914.4   err%=0.00   app_ms/req=0.439 pg_ms/req=0.294 app_cores=4.41 pg_cores=2.95
