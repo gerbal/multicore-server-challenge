@@ -375,7 +375,11 @@ article query (the viewer's `favorited`/`following` as left joins on the primary
 which cuts the planner's per-call subquery planning; and nothing obvious for GC beyond the heap and GC-interval dials
 already measured (batches 11, 23, 25). Batches 28-29 tried the first two: the `gf` allocator strategy and the left
 joins both shipped (app CPU about -3% each, -4.7% together at 39,000 users); bigger carriers and a super carrier
-were noise. A held-score search with both hasn't been run yet.
+were noise.
+
+**Held score of `e63bd4d` on this rig: 38,000** (`search.sh` from 39,000: probes 39,000 fail on p95 521 ms, 35,000,
+37,000 and 38,000 pass; the 5-minute hold at 38,000 passed with 9,609 req/s, p95 359 ms, p99 481 ms, 0% errors).
+Up from 37,000, inside the search's 5% resolution; ≈ 29,600 on the box with the calibration above.
 
 ## Open questions, in the order I'd tackle them
 
@@ -483,6 +487,7 @@ To get close to the benchmark box (8 vCPU, 16 GB, Ubuntu 24.04, Postgres 18):
 | `make-variant.sh` | Copies the submission to a scratch dir, applies patches, builds it, so variants never touch the tree |
 | `patches/experiment-switches.patch` | Env switches for experiments: `XPOOL_COUNT`, `XQ_TARGET`, `XQ_INTERVAL`, `XREPO_LOG`, `XPHX_LOG`, `XGC_EVERY`, `XLOG_EXC`, `XMIN_HEAP`, `XPG_REF` (`false` = default types), `XSIGNER=prebuilt`. Never commit it applied |
 | `profile.sh` + `prof.exs` | `tprof` call-time profile of the prod build under load |
+| `search.sh` | The scoring search's probe/bisect/hold shape from a starting guess, through `bench.sh`; prints the held score |
 | `perf.sh` + `perf-layers.py` | Linux `perf` profile of one `bench.sh` run at full load, from a helper container (seccomp blocks `perf` in the bench container); flame graph, flat profile, per-layer and per-caller summaries. Needs the `localhost/perf-tools` image (a Fedora toolbox with `perf` and `js-d3-flame-graph`, `podman commit`ed) |
 | `idle-memory.sh` + `idle_conns.py` | Memory per idle keep-alive connection |
 | `port80.sh` | Binds port 80 as an unprivileged user with only the ambient capability, like `box/challenge.service` |
