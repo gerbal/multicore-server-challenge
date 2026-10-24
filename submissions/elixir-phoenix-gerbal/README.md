@@ -54,7 +54,12 @@ The queries are Ecto's, not SPEC.md's SQL strings, but they keep the reference S
   8,564 req/s, p99 341 → 247 ms, 13% less Postgres CPU per request, for 1% more app CPU.
 - Responses are encoded with Elixir's built-in `JSON` (OTP's `:json`) instead of Jason (`config :phoenix,
   :json_library, JSON`). String escaping was the largest single app cost in a profile at load; interleaved at
-  saturation (7,500 users) it took 8,447 → 8,679 req/s with 4% less app CPU per request, every run faster. The favorite count and the viewer's `favorited` and `following` are correlated subqueries in the select
+  saturation (7,500 users) it took 8,447 → 8,679 req/s with 4% less app CPU per request, every run faster.
+- An article's comments are one statement: the article by slug, left-lateral-joined to its newest 100 comments
+  (`left_lateral_join: c in subquery(newest)` with `parent_as(:article)`), so an article without comments is a row
+  with a nil comment and an unknown slug is no row (404). Every `Repo` call costs a pool checkout, a planner pass and
+  a round trip; dropping the separate slug lookup on the most frequent request took 8,651 → 8,900 req/s (7,500
+  users, interleaved), 3.5% less app CPU per request. The favorite count and the viewer's `favorited` and `following` are correlated subqueries in the select
   (`exists(subquery(...))` with `parent_as`), so they run once per article on the page.
 - The feed takes each followed author's newest `limit + offset` articles through a lateral join and merges them,
   so it walks `articles_author_idx` instead of sorting everything the followed authors ever wrote.

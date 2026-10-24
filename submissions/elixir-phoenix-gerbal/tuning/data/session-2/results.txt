@@ -129,3 +129,11 @@ b17-jason-3            users=7500   req/s=8475.5   p50=128.6   p95=233.5   p99=2
 b17-json-3             users=7500   req/s=8696.3   p50=96.6    p95=197.4   p99=224.6   err%=0.00   app_ms/req=0.496 pg_ms/req=0.378 app_cores=4.31 pg_cores=3.28
 b17-json-4             users=7500   req/s=8703.5   p50=94.0    p95=196.1   p99=224.6   err%=0.00   app_ms/req=0.493 pg_ms/req=0.380 app_cores=4.29 pg_cores=3.31
 b17-jason-4            users=7500   req/s=8474.3   p50=118.7   p95=247.4   p99=273.2   err%=0.00   app_ms/req=0.510 pg_ms/req=0.382 app_cores=4.32 pg_cores=3.23
+b18-twostmt-1          users=7500   req/s=8659.2   p50=104.3   p95=201.7   p99=227.6   err%=0.00   app_ms/req=0.488 pg_ms/req=0.387 app_cores=4.23 pg_cores=3.35
+b18-onestmt-1          users=7500   req/s=8955.8   p50=57.0    p95=172.8   p99=195.3   err%=0.00   app_ms/req=0.472 pg_ms/req=0.377 app_cores=4.23 pg_cores=3.37
+b18-onestmt-2          users=7500   req/s=8957.8   p50=57.3    p95=177.3   p99=221.6   err%=0.00   app_ms/req=0.473 pg_ms/req=0.378 app_cores=4.24 pg_cores=3.39
+b18-twostmt-2          users=7500   req/s=8550.9   p50=119.4   p95=215.2   p99=228.6   err%=0.00   app_ms/req=0.501 pg_ms/req=0.383 app_cores=4.29 pg_cores=3.27
+b18-twostmt-3          users=7500   req/s=8690.0   p50=97.9    p95=199.8   p99=221.4   err%=0.00   app_ms/req=0.486 pg_ms/req=0.384 app_cores=4.23 pg_cores=3.34
+b18-onestmt-3          users=7500   req/s=8839.8   p50=65.5    p95=200.4   p99=223.1   err%=0.00   app_ms/req=0.477 pg_ms/req=0.381 app_cores=4.22 pg_cores=3.37
+b18-onestmt-4          users=7500   req/s=8847.3   p50=68.0    p95=211.6   p99=249.3   err%=0.00   app_ms/req=0.475 pg_ms/req=0.378 app_cores=4.20 pg_cores=3.34
+b18-twostmt-4          users=7500   req/s=8703.6   p50=99.6    p95=201.6   p99=220.8   err%=0.00   app_ms/req=0.490 pg_ms/req=0.384 app_cores=4.27 pg_cores=3.34

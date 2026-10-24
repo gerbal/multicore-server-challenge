@@ -254,21 +254,32 @@ defmodule Conduit.Blog do
   @doc "Lists an article's newest #{@max_comments} comments, newest first."
   @spec list_comments(String.t(), pos_integer() | nil) :: {:ok, [Comment.t()]} | {:error, :not_found}
   def list_comments(slug, viewer_id) do
-    with {:ok, article_id} <- fetch_article_id(slug) do
-      query =
-        from c in Comment,
-          join: u in assoc(c, :author),
-          as: :author,
-          where: c.article_id == ^article_id,
-          order_by: [desc: c.created_at, desc: c.id],
-          limit: @max_comments,
-          select:
-            merge(c, %{
-              author:
-                merge(struct(u, @author_fields), %{following: exists(subquery(Profiles.follows_author(viewer_id)))})
-            })
+    newest =
+      from c in Comment,
+        where: c.article_id == parent_as(:article).id,
+        order_by: [desc: c.created_at, desc: c.id],
+        limit: @max_comments
 
-      {:ok, Repo.all(query)}
+    # One statement: the article by slug, left-joined to its newest comments, so an article without comments is still
+    # a row (with a nil comment) and an unknown slug is no row at all.
+    query =
+      from a in Article,
+        as: :article,
+        where: a.slug == ^slug,
+        left_lateral_join: c in subquery(newest),
+        on: true,
+        left_join: u in User,
+        on: u.id == c.author_id,
+        as: :author,
+        order_by: [desc: c.created_at, desc: c.id],
+        select: {c, struct(u, @author_fields), exists(subquery(Profiles.follows_author(viewer_id)))}
+
+    case Repo.all(query) do
+      [] ->
+        {:error, :not_found}
+
+      rows ->
+        {:ok, for({%Comment{} = c, author, following} <- rows, do: %{c | author: %{author | following: following}})}
     end
   end
 
