@@ -183,3 +183,9 @@ b21-p24s6-1            users=36000  req/s=9164.0   p50=114.9   p95=410.1   p99=5
 b21-p24s6-2            users=36000  req/s=9143.2   p50=120.5   p95=393.2   p99=471.8   err%=0.00   app_ms/req=0.487 pg_ms/req=0.334 app_cores=4.45 pg_cores=3.05
 b21-p24s5-2            users=36000  req/s=9129.5   p50=117.3   p95=380.7   p99=438.3   err%=0.00   app_ms/req=0.476 pg_ms/req=0.330 app_cores=4.35 pg_cores=3.01
 b21-p24-2              users=36000  req/s=9112.4   p50=135.2   p95=457.7   p99=504.3   err%=0.00   app_ms/req=0.493 pg_ms/req=0.331 app_cores=4.50 pg_cores=3.01
+hold2-ours             users=36000  req/s=8879.8   p50=221.6   p95=718.3   p99=783.4   err%=0.00   app_ms/req=0.507 pg_ms/req=0.340 app_cores=4.50 pg_cores=3.01
+hold2-ours             users=34200  req/s=8856.1   p50=65.2    p95=276.2   p99=349.7   err%=0.00   app_ms/req=0.509 pg_ms/req=0.341 app_cores=4.50 pg_cores=3.02
+hold2-foovoo           users=48000  req/s=11207.6  p50=639.0   p95=812.0   p99=841.2   err%=0.00   app_ms/req=0.249 pg_ms/req=0.338 app_cores=2.79 pg_cores=3.79
+hold2-foovoo           users=45600  req/s=11371.7  p50=297.2   p95=517.9   p99=541.2   err%=0.00   app_ms/req=0.241 pg_ms/req=0.333 app_cores=2.74 pg_cores=3.79
+hold2-foovoo           users=43300  req/s=10593.3  p50=148.5   p95=1114.1  p99=2684.9  err%=0.00   app_ms/req=0.245 pg_ms/req=0.332 app_cores=2.60 pg_cores=3.51
+hold2-foovoo           users=41100  req/s=10752.0  p50=13.9    p95=269.6   p99=303.6   err%=0.00   app_ms/req=0.244 pg_ms/req=0.326 app_cores=2.62 pg_cores=3.51

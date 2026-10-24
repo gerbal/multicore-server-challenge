@@ -36,7 +36,12 @@ front, so this submission does too.
 | `b4cdc35` | Select only the columns the JSON sends; `bench.sh` CPU pinning; session 2 data and this update |
 | `fd00b5d` | Ecto `queue_target` 200 ms, from the real-pacing holds below |
 | `8d3164a` | Erlang/OTP 29.1.2 and Elixir 1.20.4 (batch 10) |
-| the next commit | 4,181-word connection heap + Postgrex reference decoding (batches 11-12); dependency survey |
+| `d208fa0` | 4,181-word connection heap + Postgrex reference decoding (batches 11-12); dependency survey |
+| `f6db6fa` | List filters walk their join tables' indexes (batch 15) |
+| `ff9d8a6` | List pages loaded by id list, a second statement (batch 16) |
+| `b8914ee` | Elixir's built-in `JSON` instead of Jason (batch 17) |
+| `0feb89f` | An article's comments in one statement (batch 18) |
+| `a7fe6ad` | Ecto pool of 3 connections per core (batches 19-21) |
 
 ### What the shipped config sets, and why
 
@@ -50,7 +55,10 @@ front, so this submission does too.
 | Ecto `queue_target` 200 ms | `runtime.exs` | Strong at real pacing: batch 8 (session 2). The default sheds queries as 500s at saturation |
 | Connection heap `min_heap_size: 4181` | `runtime.exs` | Strong: batches 11-12. ~35 KB more per connection |
 | Postgrex `decode_binary: :reference` | `Conduit.PostgrexTypes` | Strong: batches 11-12 |
-| Pool 10 per core, capped at 90 | `start.sh` | Matches the Go example. Locally 40 beat 20 and 10 at saturation (below); unconfirmed on 8 cores |
+| Pool 3 per core, capped at 90 (24 on the box) | `start.sh` | Strong at real pacing: batches 19-21 |
+| Filters walk join-table indexes; pages loaded by id list | `Conduit.Blog` | Strong: batches 15-16 |
+| Comments in one statement (lateral join) | `Conduit.Blog` | Strong: batch 18 |
+| Elixir's built-in `JSON` | `config.exs` | Strong: batch 17 |
 | Tag names in the article query | `Conduit.Blog` | Strong: see batch 4. One round trip and Ecto's preloader removed per article list/page |
 | Only the columns the JSON sends | `Conduit.Blog` | Strong: batch 6 (session 2). Lists skip `body`, authors skip `email`/`password_hash` |
 
@@ -258,12 +266,56 @@ telemetry handlers to `persistent_term`; the logger handler goes synchronous abo
 matters only while errors are being logged. Jason, Ecto's query cache, `prepare: :named` and `plan_cache_mode`
 are already the best settings.
 
+### Postgres per request, then app per request, then pool size (batches 13-21)
+
+The leaderboard (`LEADERBOARD.md`) showed where the gap was: its top entries spend ~0.2-0.25 ms of Postgres CPU per
+request; this build spent ~0.55 ms. Each step below was interleaved (4 runs each unless stated) and won in every run.
+
+| Batch | Change | Load | req/s | p95 | App / PG CPU per request |
+|---|---|---|---|---|---|
+| 13 | heap 2,584 / 4,181 / 6,765 words | 6,000 users, 0.2 | 7,344 / 7,304 / 7,395 | 112 / 115 / 113 ms | a tie: not changed |
+| 14 | `plan_cache_mode = force_generic_plan` (2 runs) | 6,000, 0.2 | 7,326 → **1,418** | 119 → 5,204 ms | the global list's generic plan scans every article |
+| 15 | filters walk `article_tags` / `favorites` directly | 6,000, 0.2 | 7,364 → 7,888 | 115 → 19 ms | 0.487 / 0.549 → 0.517 / 0.435 (no longer saturated) |
+| 16 | page ids, then articles `where: a.id in ^ids` | 7,500, 0.2 | 8,132 → 8,564 | 269 → 220 ms | 0.497 / 0.440 → 0.503 / 0.384 |
+| 17 | Elixir `JSON` instead of Jason | 7,500, 0.2 | 8,447 → 8,679 | 242 → 201 ms | 0.512 → 0.492 app |
+| 18 | comments in one statement | 7,500, 0.2 | 8,651 → 8,900 | | 0.491 / 0.385 → 0.474 / 0.379 |
+| 19 | pool 80 → 24 (2 runs; also `+S 5:5`, `6:6`, sbwt, pool 12) | 34,000, real | 8,639 → 8,972 | 373 → 45 ms | 0.487 / 0.384 → 0.504 / 0.329 |
+| 20 | pool 16 / 24 / 32 / 40, ± `+S` (2 runs) | 38,000, real | all fail; 24 the only pool size with 0% errors | 800-1,050 ms | |
+| 21 | pool 24 ± `+S 5:5` / `6:6` (2 runs) | 36,000, real | 9,164 / 9,113 / 9,154 | 391 / 398 / 402 ms | a tie: `+S` not shipped |
+
+How the Postgres work was found: log every statement under load, then for each hot one compare `EXPLAIN ANALYZE`
+planning vs execution time, and check `pg_prepared_statements` (`generic_plans`, `custom_plans`) after preparing it
+and executing it 10 times in one session. Statements whose generic plan is fine switch to it after 5 executions;
+the global and tag lists never did (`LIMIT`/`OFFSET` as parameters), and their planning was ~25% of all Postgres
+time. Warm the session before trusting `EXPLAIN` planning times: a fresh `psql` plans 3-5x slower.
+
+The app profile (`profile.sh` at 2,500 users; at 7,000 the traced server overloads and the profile fills with error
+handling): socket writes 14% (one per response, one per Postgres statement), Jason escaping ~12% (fixed by batch
+17), the Ecto planner and DBConnection checkout ~5% (both per `Repo` call), then a flat tail.
+
+### Calibration against the leaderboard
+
+`elixir-raw-foovoo` (32,000 on the box) built and run on this rig, interleaved with this build, then 300 s holds
+stepping down 5% as the real search does:
+
+| | Probes (60 s) | 300 s holds | Rig score | Box |
+|---|---|---|---:|---:|
+| `elixir-raw-foovoo` | 44k, 50k pass; 56k fails | 48k, 45.6k, 43.3k fail; **41.1k passes** | 41,100 | 32,000 |
+| this build (`a7fe6ad`) | 34k passes; 36k, 38k fail | 36k fails (p95 718 ms); **34.2k passes** (p95 276 ms) | 34,200 | ≈ 26,600 |
+
+So box ≈ 0.78 × this rig, and this build would hold about 26-27k on the box: above the four video examples (Go 24k,
+Rust 22k, Java 21k) and at ~83% of `elixir-raw-foovoo`. Per request on the rig: app 0.48-0.51 ms vs its 0.24,
+Postgres 0.33-0.34 vs its 0.33. Postgres is at parity; the remaining gap is the framework's CPU per request.
+(One reference and one hold each: ±10%. `elixir-raw-foovoo` was built with OTP 29, not its pinned 28.)
+
 ## Open questions, in the order I'd tackle them
 
 After session 2 (questions 1-7 below are done or settled; see above):
 
-- **Heap size sweep**: 2,584 / 4,181 / 6,765 words, interleaved, with RSS. Then the knee and a 300 s hold with
-  everything shipped (the last measured passing hold, 27k, predates the heap and decoding changes).
+- **App CPU per request is the gap** (0.5 vs 0.24 ms). Profile again with the current build; the per-`Repo`-call
+  overhead (planner, checkout, a socket write each) argues for fewer statements: lists still run three (ids,
+  articles, count), favorites three.
+- Heap back to 2,584 words: batch 13 showed no CPU difference and it saves ~13 KB per connection.
 
 - **The overload cliff.** From 26k to 30k users errors go 0% → 30%, and every 500 closes the user's connection,
   so the load turns into a reconnect storm. Prod logs at `:warning`, so each shed query also writes a ~20-line
@@ -273,7 +325,7 @@ After session 2 (questions 1-7 below are done or settled; see above):
   join, and `GET /api/articles/:slug/comments` (the most frequent request with the article lookup) as one query
   instead of two.
 - Logging off once more with `ROUNDS=3` if a 1% win is worth shipping; it's a standard production setting either way.
-- `+S 6:6` / `+S 7:7` on the 8-thread setup (busy-wait off is settled: no effect).
+- `+S 5:5` trims app CPU 3% with pool 24 but didn't move throughput; retest if the app share grows.
 - A bundle of the ~1% items (Phoenix logger off, Ecto `log: false`, `:telemetry.persist()`, no `Plug.RequestId`),
   `ROUNDS=3`.
 
@@ -320,7 +372,10 @@ Traps on this host:
 - **`podman exec` without `-i` drops stdin**, so `python3 - <<EOF` silently runs nothing.
 - **PID 1 is `sleep infinity`, which doesn't reap**: every stopped server stays a `beam.smp` zombie. Harmless for
   `bench.sh` (a zombie's tick counters are frozen, so they cancel out), but recreate with `--init` next time.
-- Once, `test/run.sh` hit `eaddrinuse` on port 3000 right after a variant's conformance run; it didn't reproduce.
+- Twice, `test/run.sh` hit `eaddrinuse` on port 3000 (the server didn't start, so the run failed); nothing was
+  listening afterwards and the next runs passed. Unexplained; re-run before concluding anything.
+- `pkill -f` patterns in a `podman exec` command line match the wrapper's own text (database names and paths
+  count): kill by PID instead.
 
 ## Setting up the new host
 
