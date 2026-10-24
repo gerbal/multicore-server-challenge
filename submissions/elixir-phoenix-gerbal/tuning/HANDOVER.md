@@ -74,7 +74,7 @@ front, so this submission does too.
 | Ecto `queue_target` 200 ms | `runtime.exs` | Strong at real pacing: batch 8 (session 2). The default sheds queries as 500s at saturation |
 | Connection heap `min_heap_size: 4181` | `runtime.exs` | Strong: batches 11-12. ~35 KB more per connection |
 | Postgrex `decode_binary: :reference` | `Conduit.PostgrexTypes` | Strong: batches 11-12 |
-| Pool 3 per core, capped at 90 (24 on the box) | `config/runtime.exs` | Strong at real pacing: batches 19-21 |
+| Pool 4 per core, capped at 90 (32 on the box) | `config/runtime.exs` | 3 per core from batches 19-21; 4 per core from hold-shaped batches 35-36 |
 | Normal schedulers on 5/8 of the cores | `rel/env.sh.eex` | Moderate: lower app CPU per request in batches 19, 21 and 23 |
 | A list's count in its ids statement | `Conduit.Blog` | Strong: batch 22 |
 | Filters walk join-table indexes; pages loaded by id list | `Conduit.Blog` | Strong: batches 15-16 |
@@ -348,7 +348,9 @@ Postgres 0.33-0.34 vs its 0.33. Postgres is at parity; the remaining gap is the 
 | 31 | From a perf profile of Postgres: tag names by primary key through a lateral join (`tags`), vs base and flat | 38,000 | base 9,937 req/s, app 0.424, pg 0.324 ms, p95 104 ms; tags 10,055 / 0.430 / **0.272** / **11 ms**: **shipped**. The plain join hashed a scan of all 200 tags per article (pgbench 0.36 → 0.23 ms per page statement) |
 | 32 | `+S 5:5` / `6:6` / `7:7` now that Postgres needs ~2.9 cores | 41,000 | 10,739 / 10,735 / 10,779 req/s: noise; app CPU per request 0.416 / 0.426 / 0.428 ms, so 5:5 stays |
 | 33 | Hold-shaped (60 s + 300 s, compared on the last 60 s with `late.py`): comment columns trimmed (`cols`), connection heap 6,765 / 10,946 words | 41,000 | late p95 base 500 ms, cols 449, heap6765 523, heap10946 488; app CPU 0.432 / 0.429 / 0.434 / 0.422 ms; peak RSS 2.77 / 2.74 / 3.41 / **4.60 GB**. cols shipped (fewer columns, no downside); the bigger heaps' memory isn't worth it |
-| 34 | Hold-shaped: tags as one `array_agg` row + timestamps formatted digit by digit (`fast`); on fast, pool 20 / 28, `+sbt db` | 41,000 | late req/s / p95 / app ms: base 9,982 / 497 / 0.430; fast 10,146 / 390 / 0.418; pool20 9,939 / 520 / 0.427; pool28 10,214 / 364 / 0.413; sbt 9,864 / 583 / 0.424. fast **shipped**; sbt no; pool trend 20 < 24 < 28, confirmed in batch 35 |
+| 34 | Hold-shaped: tags as one `array_agg` row + timestamps formatted digit by digit (`fast`); on fast, pool 20 / 28, `+sbt db` | 41,000 | late req/s / p95 / app ms: base 9,982 / 497 / 0.430; fast 10,146 / 390 / 0.418; pool20 9,939 / 520 / 0.427; pool28 10,214 / 364 / 0.413; sbt 9,864 / 583 / 0.424. fast **shipped**; sbt no; pool trend 20 < 24 < 28 |
+| 35 | Hold-shaped, on 60b5cd3: pool 24 / 28 / 32 | 41,000 | late p95 488 / 465 / 374 ms; app 0.420 / 0.419 / 0.414 ms, pg 0.290 / 0.298 / 0.296 |
+| 36 | Hold-shaped: pool 24 / 32 / 40 | 41,000 | late p95 516 / 489 / 457 ms; app 0.425 / 0.416 / 0.411, pg 0.292 / 0.300 / 0.307 (total flat). **32 shipped** (4 per core) |
 
 **Held score of `60e6e88` on this rig: 37,000** (probe at 39,000 failed on p95; 300 s hold at 37,000 passed,
 p95 457 ms, p99 633 ms, 0% errors, 9,221 req/s). With the calibration above (box ≈ 0.78 × rig), **≈ 29,000 on

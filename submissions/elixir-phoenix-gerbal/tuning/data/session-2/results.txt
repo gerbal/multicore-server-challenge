@@ -303,3 +303,15 @@ b34-sbt-2              users=41000  req/s=10238.6  p50=213.0   p95=504.6   p99=6
 b34-base-2             users=41000  req/s=10223.8  p50=213.5   p95=505.9   p99=684.5   err%=0.00   app_ms/req=0.432 pg_ms/req=0.289 app_cores=4.41 pg_cores=2.95
 b34-pool20-2           users=41000  req/s=10226.2  p50=215.7   p95=530.9   p99=684.0   err%=0.00   app_ms/req=0.429 pg_ms/req=0.283 app_cores=4.39 pg_cores=2.90
 b34-fast-2             users=41000  req/s=10487.4  p50=126.3   p95=353.0   p99=439.8   err%=0.00   app_ms/req=0.417 pg_ms/req=0.282 app_cores=4.37 pg_cores=2.96
+b35-pool28-1           users=41000  req/s=10331.0  p50=175.2   p95=430.6   p99=575.5   err%=0.00   app_ms/req=0.417 pg_ms/req=0.299 app_cores=4.30 pg_cores=3.09
+b35-pool24-1           users=41000  req/s=10311.4  p50=188.3   p95=476.4   p99=623.6   err%=0.00   app_ms/req=0.419 pg_ms/req=0.289 app_cores=4.32 pg_cores=2.98
+b35-pool32-1           users=41000  req/s=10350.9  p50=178.4   p95=428.0   p99=581.1   err%=0.00   app_ms/req=0.417 pg_ms/req=0.301 app_cores=4.31 pg_cores=3.12
+b35-pool32-2           users=41000  req/s=10479.3  p50=130.7   p95=338.7   p99=451.8   err%=0.00   app_ms/req=0.411 pg_ms/req=0.292 app_cores=4.30 pg_cores=3.06
+b35-pool24-2           users=41000  req/s=10291.0  p50=182.7   p95=487.2   p99=616.4   err%=0.00   app_ms/req=0.422 pg_ms/req=0.291 app_cores=4.35 pg_cores=2.99
+b35-pool28-2           users=41000  req/s=10260.1  p50=188.7   p95=487.2   p99=602.1   err%=0.00   app_ms/req=0.421 pg_ms/req=0.298 app_cores=4.32 pg_cores=3.06
+b36-pool40-1           users=41000  req/s=10330.4  p50=177.0   p95=433.7   p99=571.4   err%=0.00   app_ms/req=0.407 pg_ms/req=0.308 app_cores=4.21 pg_cores=3.18
+b36-pool32-1           users=41000  req/s=10429.5  p50=144.0   p95=422.9   p99=554.0   err%=0.00   app_ms/req=0.413 pg_ms/req=0.295 app_cores=4.30 pg_cores=3.07
+b36-pool24-1           users=41000  req/s=10178.6  p50=233.1   p95=584.7   p99=777.2   err%=0.00   app_ms/req=0.428 pg_ms/req=0.294 app_cores=4.36 pg_cores=2.99
+b36-pool24-2           users=41000  req/s=10237.6  p50=213.5   p95=486.1   p99=671.2   err%=0.00   app_ms/req=0.422 pg_ms/req=0.290 app_cores=4.32 pg_cores=2.97
+b36-pool32-2           users=41000  req/s=10253.6  p50=200.7   p95=517.9   p99=673.8   err%=0.00   app_ms/req=0.420 pg_ms/req=0.306 app_cores=4.31 pg_cores=3.13
+b36-pool40-2           users=41000  req/s=10268.9  p50=192.1   p95=484.1   p99=641.0   err%=0.00   app_ms/req=0.416 pg_ms/req=0.307 app_cores=4.27 pg_cores=3.16

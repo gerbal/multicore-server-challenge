@@ -10,10 +10,10 @@ if config_env() == :prod do
 
   config :conduit, Conduit.Repo,
     url: System.fetch_env!("DATABASE_URL"),
-    # One pool of 3 connections per core, capped at 90 (Postgres allows 100). Postgres shares the cores, and more
-    # backends than that only made every statement slower: on 8 threads at 34,000 users, 24 connections instead of 80
-    # took p95 373 -> 45 ms and Postgres CPU per request -14%; 16 starved the pool, 32 and 40 were already worse.
-    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE") || "#{min(3 * cores, 90)}"),
+    # One pool of 4 connections per core, capped at 90 (Postgres allows 100). Postgres shares the cores, and many more
+    # backends only make every statement slower (80 instead of 24 cost 14% more Postgres CPU per request); at the end
+    # of 5-minute holds at 41,000 users, 32 instead of 24 took p95 488 -> 374 and 516 -> 489 ms in two batches.
+    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE") || "#{min(4 * cores, 90)}"),
     # At saturation, let a query wait up to 200 ms for a connection (DBConnection's default is 50 ms) before the
     # pool starts shedding: latency has headroom under the 500 ms p95 limit, while every shed query is a 500.
     queue_target: 200

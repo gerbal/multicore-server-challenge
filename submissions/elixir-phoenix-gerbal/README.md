@@ -116,13 +116,16 @@ The queries are Ecto's, not SPEC.md's SQL strings, but they keep the reference S
 
 One BEAM node with normal schedulers on 5/8 of the cores (`+S 5:5` on the box, set by `rel/env.sh.eex` when the
 release starts; Postgres needs the rest): Bandit runs a process per connection, and bcrypt's NIF runs on the dirty CPU
-schedulers. One Ecto pool of 3 connections per core, capped at 90 (24 on the 8-core box; `config/runtime.exs`, and
+schedulers. One Ecto pool of 4 connections per core, capped at 90 (32 on the 8-core box; `config/runtime.exs`, and
 `DB_POOL_SIZE` overrides it). Ecto prepares and caches each query per connection.
 
 The pool is small on purpose: Postgres runs on the same cores, and more backends than that only made every
 statement slower. At real pacing on 8 threads (34,000 users, interleaved) 24 connections instead of 80 (10 per core,
 as in the Go example) took p95 373 → 45 ms, p99 478 → 86 ms and Postgres CPU per request -14%. At 38,000 users 16
-starved the pool and 32 and 40 had errors where 24 had none. Five schedulers instead of eight cut app CPU per
+starved the pool and 32 and 40 had errors where 24 had none. After Postgres got cheaper (the tag lookups below),
+5-minute holds at 41,000 users compared on their last minute favoured more connections: p95 at 24 / 28 / 32 was
+488 / 465 / 374 ms in one batch and 24 / 32 / 40 516 / 489 / 457 in another, app CPU falling and Postgres CPU rising
+by about as much, so 32 (4 per core) it is. Five schedulers instead of eight cut app CPU per
 request in three separate batches (8% with 80 connections, 3-4% with 24) and at 37,000 users took p95 360 → 290 ms
 and p99 468 → 366 ms.
 
@@ -180,5 +183,5 @@ to keep the suite fast. `mix precommit` (as in `mix phx.new`) compiles with warn
 deps, formats with Styler and runs the tests.
 
 Environment: `DATABASE_URL`, `JWT_SECRET` (required), `HOST` (127.0.0.1; `0.0.0.0` on the box), `PORT` (3000; `80`
-on the box), `DB_POOL_SIZE` (3 per core, at most 90). `start.sh` only runs the release, so `bin/conduit start`
+on the box), `DB_POOL_SIZE` (4 per core, at most 90). `start.sh` only runs the release, so `bin/conduit start`
 behaves the same. Binding port 80 needs `CAP_NET_BIND_SERVICE`, which the box's systemd unit grants.
