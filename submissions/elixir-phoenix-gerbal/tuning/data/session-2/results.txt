@@ -113,3 +113,11 @@ b15-old-3              users=6000   req/s=7350.0   p50=56.1    p95=118.5   p99=1
 b15-ids-3              users=6000   req/s=7891.2   p50=3.5     p95=14.1    p99=24.0    err%=0.00   app_ms/req=0.522 pg_ms/req=0.433 app_cores=4.12 pg_cores=3.42
 b15-ids-4              users=6000   req/s=7876.6   p50=4.7     p95=20.8    p99=34.4    err%=0.00   app_ms/req=0.513 pg_ms/req=0.436 app_cores=4.04 pg_cores=3.44
 b15-old-4              users=6000   req/s=7394.3   p50=54.3    p95=116.9   p99=154.0   err%=0.00   app_ms/req=0.488 pg_ms/req=0.546 app_cores=3.61 pg_cores=4.04
+b16-onestep-1          users=7500   req/s=7962.9   p50=202.4   p95=304.4   p99=377.6   err%=0.00   app_ms/req=0.504 pg_ms/req=0.447 app_cores=4.02 pg_cores=3.56
+b16-twostep-1          users=7500   req/s=8557.3   p50=116.5   p95=222.3   p99=244.4   err%=0.00   app_ms/req=0.503 pg_ms/req=0.386 app_cores=4.30 pg_cores=3.30
+b16-twostep-2          users=7500   req/s=8516.3   p50=115.1   p95=228.4   p99=265.5   err%=0.00   app_ms/req=0.504 pg_ms/req=0.384 app_cores=4.29 pg_cores=3.27
+b16-onestep-2          users=7500   req/s=8129.3   p50=186.0   p95=262.7   p99=350.5   err%=0.00   app_ms/req=0.500 pg_ms/req=0.443 app_cores=4.06 pg_cores=3.60
+b16-onestep-3          users=7500   req/s=8291.6   p50=158.1   p95=247.3   p99=298.8   err%=0.00   app_ms/req=0.489 pg_ms/req=0.434 app_cores=4.05 pg_cores=3.60
+b16-twostep-3          users=7500   req/s=8592.9   p50=110.3   p95=211.6   p99=229.2   err%=0.00   app_ms/req=0.499 pg_ms/req=0.386 app_cores=4.29 pg_cores=3.32
+b16-twostep-4          users=7500   req/s=8589.2   p50=109.2   p95=217.0   p99=249.1   err%=0.00   app_ms/req=0.505 pg_ms/req=0.381 app_cores=4.34 pg_cores=3.27
+b16-onestep-4          users=7500   req/s=8145.5   p50=176.6   p95=260.9   p99=337.7   err%=0.00   app_ms/req=0.494 pg_ms/req=0.436 app_cores=4.02 pg_cores=3.55

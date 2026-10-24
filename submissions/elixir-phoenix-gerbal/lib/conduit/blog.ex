@@ -121,10 +121,18 @@ defmodule Conduit.Blog do
   end
 
   # Lists pick a page of ids first and then load just those articles, so the per-article subqueries for counts and
-  # the viewer run for the page only.
+  # the viewer run for the page only. The two are separate statements: with the page's `LIMIT` and `OFFSET` as
+  # parameters Postgres can't reuse a generic plan for the big article query, and planning it on every call cost more
+  # than running it. Loaded by an id list, it is planned once per connection.
   defp load_page(page_ids, viewer_id) do
-    query = articles_query(viewer_id, @summary_fields)
-    Repo.all(from a in query, where: a.id in subquery(page_ids), order_by: [desc: a.id])
+    case Repo.all(page_ids) do
+      [] ->
+        []
+
+      ids ->
+        query = articles_query(viewer_id, @summary_fields)
+        Repo.all(from a in query, where: a.id in ^ids, order_by: [desc: a.id])
+    end
   end
 
   defp capped_count(ids) do

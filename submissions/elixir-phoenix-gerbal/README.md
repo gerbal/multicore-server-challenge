@@ -46,7 +46,12 @@ The queries are Ecto's, not SPEC.md's SQL strings, but they keep the reference S
   `(user_id, article_id)`), with the tag or user id as a scalar subquery, like the reference SQL, rather than joining
   through `articles`. On the full seed that made a popular tag's page ids 4x and its capped count 5x cheaper in
   Postgres, and in interleaved runs (6,000 users, 8 threads) Postgres CPU per request fell 21% (0.549 → 0.435 ms);
-  the box stopped saturating at that load (7,364 → 7,888 req/s, p95 115 → 19 ms). The favorite count and the viewer's `favorited` and `following` are correlated subqueries in the select
+  the box stopped saturating at that load (7,364 → 7,888 req/s, p95 115 → 19 ms).
+- The page of ids and the articles are two statements, the second loading by id list (`where: a.id in ^ids`). With
+  the page's `LIMIT`/`OFFSET` as parameters, Postgres never reuses a generic plan for the big article query (it
+  can't bound the rows), so it planned it on every call: 0.56 ms of planning for 0.30 ms of execution for the
+  global list. By id list it is planned once per connection. Interleaved at saturation (7,500 users): 8,132 →
+  8,564 req/s, p99 341 → 247 ms, 13% less Postgres CPU per request, for 1% more app CPU. The favorite count and the viewer's `favorited` and `following` are correlated subqueries in the select
   (`exists(subquery(...))` with `parent_as`), so they run once per article on the page.
 - The feed takes each followed author's newest `limit + offset` articles through a lateral join and merges them,
   so it walks `articles_author_idx` instead of sorting everything the followed authors ever wrote.
