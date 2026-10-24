@@ -9,12 +9,14 @@ defmodule ConduitWeb.ArticleControllerTest do
   end
 
   test "publishes, shows, lists, edits and deletes an article", %{conn: conn, author_conn: author_conn} do
-    body = %{article: %{title: "How to train", description: "Ever wonder?", body: "Carefully.", tagList: ["b", "a"]}}
+    [a, b] = [unique_tag("a"), unique_tag("b")]
+    body = %{article: %{title: "How to train", description: "Ever wonder?", body: "Carefully.", tagList: [b, a]}}
 
+    # Encoded, so the body goes through the endpoint's JSON parser as a client's would.
     assert %{"article" => %{"slug" => slug} = created} =
-             author_conn |> post(~p"/api/articles", body) |> json_response(201)
+             author_conn |> post(~p"/api/articles", JSON.encode!(body)) |> json_response(201)
 
-    assert %{"tagList" => ["a", "b"], "favorited" => false, "favoritesCount" => 0, "body" => "Carefully."} = created
+    assert %{"tagList" => [^a, ^b], "favorited" => false, "favoritesCount" => 0, "body" => "Carefully."} = created
     assert created["createdAt"] =~ @timestamp
     assert created["author"]["following"] == false
 
@@ -29,6 +31,17 @@ defmodule ConduitWeb.ArticleControllerTest do
 
     assert author_conn |> delete(~p"/api/articles/#{new_slug}") |> response(204) == ""
     assert conn |> get(~p"/api/articles/#{new_slug}") |> json_response(404)
+  end
+
+  test "a JSON body with the wrong types is a 422", %{author_conn: author_conn} do
+    for article <- [
+          %{title: 1, description: "d", body: "b"},
+          %{title: "t", description: "d", body: "b", tagList: [1]},
+          %{title: "t", description: "d", body: "b", tagList: "a"}
+        ] do
+      body = JSON.encode!(%{article: article})
+      assert author_conn |> post(~p"/api/articles", body) |> json_response(422), body
+    end
   end
 
   test "lists need valid paging", %{conn: conn} do

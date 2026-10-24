@@ -19,7 +19,7 @@ front, so this submission does too.
 
 - Branch `ccr-a5aea6fa-zl4011`, draft **PR #1** on `gerbal/multicore-server-challenge`. All work is committed and
   pushed. GitHub CI hadn't reported on the PR by the end of this session; check it first.
-- Conformance: 197/197 on the dev seed (local Postgres 16; CI uses 18). `mix test`: 67 tests. `install.sh` and
+- Conformance: 197/197 on the dev seed (local Postgres 16; CI uses 18). `mix test`: 84 tests. `install.sh` and
   `build.sh` validated on a clean Ubuntu 24.04 container.
 - Commits on the branch, oldest first:
 

@@ -16,9 +16,12 @@ defmodule Conduit.Blog.Comment do
     timestamps(type: :utc_datetime_usec, inserted_at: :created_at)
   end
 
+  @doc "A changeset for a new comment: the body is required. The article may have been deleted since it was looked up."
   def changeset(comment, attrs) do
     comment
-    |> cast(attrs, [:body])
+    # Any non-empty string is a body, even one of only whitespace, so values aren't trimmed before the blank check.
+    |> cast(attrs, [:body], trim_values: fn _type, value -> value end)
     |> validate_required([:body])
+    |> foreign_key_constraint(:article_id)
   end
 end

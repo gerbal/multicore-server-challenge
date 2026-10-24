@@ -27,14 +27,14 @@ defmodule Conduit.Blog.Article do
   end
 
   @doc """
-  A changeset for publishing. Title, description and body are required; `tag_list` is an optional list of
-  non-empty names.
+  A changeset for publishing. Title, description and body must be non-empty strings (whitespace counts, as in
+  SPEC.md, so values aren't trimmed before the blank check); `tag_list` is an optional list of non-empty names.
 
   The slug embeds the id, so both are assigned inside the insert's transaction from the id sequence.
   """
   def create_changeset(article, attrs) do
     article
-    |> cast(attrs, [:title, :description, :body])
+    |> cast(attrs, [:title, :description, :body], trim_values: fn _type, value -> value end)
     |> validate_required([:title, :description, :body])
     # Cast on its own because by default Ecto drops blank items from string arrays, and they must be an error.
     |> cast(attrs, [:tag_list], empty_values: [])

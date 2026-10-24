@@ -18,10 +18,13 @@ defmodule Conduit.Accounts.User do
     timestamps(type: :utc_datetime_usec, inserted_at: :created_at, updated_at: false)
   end
 
-  @doc "A changeset for signing up: username, email and password are all required."
+  @doc """
+  A changeset for signing up: username, email and password must be non-empty strings. Whitespace counts, as in
+  SPEC.md, so values aren't trimmed before the blank check.
+  """
   def registration_changeset(user, attrs) do
     user
-    |> cast(attrs, [:username, :email, :password])
+    |> cast(attrs, [:username, :email, :password], trim_values: fn _type, value -> value end)
     |> validate_required([:username, :email, :password])
     |> validate_password()
     |> unique_constraints()

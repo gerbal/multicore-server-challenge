@@ -28,7 +28,7 @@ defmodule Conduit.Accounts do
 
     with {:ok, %{email: email, password: password}} <-
            {%{}, types}
-           |> cast(attrs, Map.keys(types))
+           |> cast(attrs, Map.keys(types), trim_values: fn _type, value -> value end)
            |> validate_required(Map.keys(types))
            |> apply_action(:login) do
       user = Repo.get_by(User, email: email)

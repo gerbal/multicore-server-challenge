@@ -3,8 +3,9 @@
 **Front: direct**
 
 A baseline written the way a Phoenix team would write it: contexts, Ecto schemas and changesets, composable Ecto
-queries, JSON view modules and an ExUnit suite. It's a reference point for idiomatic Elixir rather than a contender:
-the code is untuned, and the few runtime settings below are the ones a production deploy would set.
+queries, JSON view modules and an ExUnit suite. It's a reference point for idiomatic Elixir: the tuning is
+configuration, VM flags and the shape of a few Ecto queries, each listed below with the measurement behind it,
+rather than code a Phoenix team wouldn't write.
 
 It serves the internet itself (`0.0.0.0:80`), as most Phoenix deployments do with Bandit, rather than behind Nginx.
 
@@ -32,10 +33,12 @@ Exact versions and hashes are in `mix.lock`. `install.sh` is the same toolchain 
 | `ConduitWeb.*JSON` | The response shapes (`UserJSON`, `ProfileJSON`, `ArticleJSON`, `CommentJSON`, ...) |
 | `ConduitWeb.Plugs` | `Authenticate` (required/optional token) and `Parsers` (`Plug.Parsers`, but bad JSON is a 422) |
 
-Input is validated by changesets: required and non-blank fields, string types, passwords of at most 72 bytes
-(bcrypt ignores the rest), unique usernames and emails through `unique_constraint`, and list paging through a
-schemaless changeset. Changeset errors become RealWorld's `{"errors": {"body": [...]}}` with messages like
-`"email has already been taken"`.
+Input is validated by changesets: required, non-empty string fields (only whitespace still counts as non-empty, as
+in SPEC.md), passwords of at most 72 bytes (bcrypt ignores the rest), unique usernames and emails through
+`unique_constraint`, and list paging through a schemaless changeset. Changeset errors become RealWorld's
+`{"errors": {"body": [...]}}` with messages like `"email has already been taken"`. A write that loses a race with a
+delete (a favorite or comment on an article deleted meanwhile, or two deletes at once) is the 404 it would have been
+a moment later, through `foreign_key_constraint` and `stale_error_field`, not a 500.
 
 ## Queries
 
@@ -124,8 +127,6 @@ Serving directly means one keep-alive connection per user, tens of thousands of 
 
 ## Behavior that differs from the reference
 
-- A field that is only whitespace counts as blank, as Ecto treats it by default. A username of `" "` is a 422
-  here; the reference only rejects `""`.
 - An `offset` too large for the feed's `limit + offset` to fit in a bigint (over 2^63 − 101) is a 422.
 
 ## Build, run and test

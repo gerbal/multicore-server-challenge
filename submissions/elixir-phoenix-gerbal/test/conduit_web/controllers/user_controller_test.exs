@@ -4,7 +4,7 @@ defmodule ConduitWeb.UserControllerTest do
   describe "POST /api/users" do
     test "registers and returns a token", %{conn: conn} do
       body = %{user: %{username: "jake", email: "jake@example.com", password: "jakejake"}}
-      conn = post(conn, ~p"/api/users", body)
+      conn = post(conn, ~p"/api/users", JSON.encode!(body))
 
       assert %{"user" => %{"username" => "jake", "email" => "jake@example.com", "bio" => nil, "image" => nil} = user} =
                json_response(conn, 201)
@@ -72,6 +72,13 @@ defmodule ConduitWeb.UserControllerTest do
                conn |> put(~p"/api/user", %{user: %{bio: "Hi"}}) |> json_response(200)
 
       assert conn |> put(~p"/api/user", %{user: %{email: ""}}) |> json_response(422)
+    end
+
+    test "a valid token for a user who no longer exists is a 401", %{conn: conn, user: user} do
+      Conduit.Repo.delete!(user)
+
+      assert conn |> get(~p"/api/user") |> json_response(401)
+      assert conn |> put(~p"/api/user", %{user: %{bio: "Hi"}}) |> json_response(401)
     end
 
     test "requires a valid token", %{conn: conn} do

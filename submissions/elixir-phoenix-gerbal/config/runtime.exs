@@ -1,19 +1,14 @@
 import Config
 
 if config_env() == :prod do
-  fetch_env! = fn name -> System.get_env(name) || raise "environment variable #{name} is missing" end
-
   config :conduit, Conduit.Repo,
-    url: fetch_env!.("DATABASE_URL"),
+    url: System.fetch_env!("DATABASE_URL"),
     pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
     # At saturation, let a query wait up to 200 ms for a connection (DBConnection's default is 50 ms) before the
     # pool starts shedding: latency has headroom under the 500 ms p95 limit, while every shed query is a 500.
-    queue_target: 200,
-    # Decoded text columns stay sub-binaries of the received packet instead of being copied; every request's heap is
-    # collected when it ends (see `gc_every_n_keepalive_requests` below), so nothing holds on to a packet for long.
-    types: Conduit.PostgrexTypes
+    queue_target: 200
 
-  config :joken, default_signer: fetch_env!.("JWT_SECRET")
+  config :joken, default_signer: System.fetch_env!("JWT_SECRET")
 
   {:ok, ip} = System.get_env("HOST", "127.0.0.1") |> String.to_charlist() |> :inet.parse_address()
 

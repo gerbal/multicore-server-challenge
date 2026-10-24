@@ -19,6 +19,15 @@ defmodule Conduit.AccountsTest do
                errors_on(changeset)
     end
 
+    test "takes a value of only whitespace, which is not empty" do
+      assert {:ok, %User{username: " "}} =
+               Accounts.register_user(%{
+                 "username" => " ",
+                 "email" => "#{unique_username()}@example.com",
+                 "password" => " "
+               })
+    end
+
     test "rejects non-string fields" do
       assert {:error, changeset} =
                Accounts.register_user(%{"username" => 123, "email" => "a@example.com", "password" => "pw"})
@@ -61,6 +70,10 @@ defmodule Conduit.AccountsTest do
     test "rejects a wrong password or an unknown email", %{user: user} do
       assert {:error, :unauthorized} = Accounts.authenticate(%{"email" => user.email, "password" => "wrong"})
       assert {:error, :unauthorized} = Accounts.authenticate(%{"email" => "nobody@example.com", "password" => "x"})
+    end
+
+    test "looks up an email of only whitespace like any other" do
+      assert {:error, :unauthorized} = Accounts.authenticate(%{"email" => " ", "password" => " "})
     end
 
     test "requires both fields" do

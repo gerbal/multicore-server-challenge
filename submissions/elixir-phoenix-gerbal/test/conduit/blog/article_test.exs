@@ -20,6 +20,10 @@ defmodule Conduit.Blog.ArticleTest do
       assert changeset.errors |> Keyword.keys() |> Enum.sort() == [:body, :description, :title]
     end
 
+    test "takes values of only whitespace, which are not empty" do
+      assert Article.create_changeset(%Article{}, %{"title" => " ", "description" => "\t", "body" => "\n"}).valid?
+    end
+
     test "rejects blank and non-string tags" do
       for tags <- [["ok", ""], [nil], [1], "x"] do
         refute Article.create_changeset(%Article{}, Map.put(@valid, "tag_list", tags)).valid?, inspect(tags)

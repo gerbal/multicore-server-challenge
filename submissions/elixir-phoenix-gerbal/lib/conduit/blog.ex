@@ -174,10 +174,11 @@ defmodule Conduit.Blog do
     fetch(Repo.one(from a in articles_query(viewer_id), where: a.slug == ^slug))
   end
 
-  defp get_article!(id, viewer_id), do: Repo.one!(from a in articles_query(viewer_id), where: a.id == ^id)
+  # Writes return the article as it is after them. It can be gone by then, deleted by its author in another request.
+  defp reload_article(id, viewer_id), do: fetch(Repo.one(from a in articles_query(viewer_id), where: a.id == ^id))
 
   @doc "Publishes an article by `author_id`, creating any tags that don't exist yet."
-  @spec create_article(pos_integer(), map()) :: {:ok, Article.t()} | {:error, Ecto.Changeset.t()}
+  @spec create_article(pos_integer(), map()) :: {:ok, Article.t()} | {:error, :not_found | Ecto.Changeset.t()}
   def create_article(author_id, attrs) do
     insert =
       %Article{author_id: author_id}
@@ -185,7 +186,7 @@ defmodule Conduit.Blog do
       |> prepare_changes(&put_tags/1)
       |> Repo.insert()
 
-    with {:ok, article} <- insert, do: {:ok, get_article!(article.id, author_id)}
+    with {:ok, article} <- insert, do: reload_article(article.id, author_id)
   end
 
   # Runs inside the insert's transaction. Names are sorted so concurrent upserts take row locks in the same order.
@@ -206,18 +207,18 @@ defmodule Conduit.Blog do
   def update_article(slug, user_id, attrs) do
     with {:ok, article} <- fetch_own_article(slug, user_id),
          # force: an edit always bumps updated_at, even when nothing else changed.
-         {:ok, article} <- article |> Article.update_changeset(attrs) |> Repo.update(force: true) do
-      {:ok, get_article!(article.id, user_id)}
+         {:ok, article} <-
+           article |> Article.update_changeset(attrs) |> Repo.update(force: true, stale_error_field: :id) |> gone() do
+      reload_article(article.id, user_id)
     end
   end
 
   @doc "Deletes an article, with its comments, tags links and favorites. Only its author may."
   @spec delete_article(String.t(), pos_integer()) :: :ok | {:error, :not_found | :forbidden}
   def delete_article(slug, user_id) do
-    with {:ok, article} <- fetch_own_article(slug, user_id) do
-      Repo.delete!(article)
-      :ok
-    end
+    with {:ok, article} <- fetch_own_article(slug, user_id),
+         {:ok, _article} <- article |> Repo.delete(stale_error_field: :id) |> gone(),
+         do: :ok
   end
 
   defp fetch_own_article(slug, user_id) do
@@ -231,10 +232,13 @@ defmodule Conduit.Blog do
   @doc "Favorites an article. Favoriting it twice is fine."
   @spec favorite_article(String.t(), pos_integer()) :: {:ok, Article.t()} | {:error, :not_found}
   def favorite_article(slug, user_id) do
-    with {:ok, article_id} <- fetch_article_id(slug) do
-      Repo.insert!(%Favorite{user_id: user_id, article_id: article_id}, on_conflict: :nothing)
-      {:ok, get_article!(article_id, user_id)}
-    end
+    with {:ok, article_id} <- fetch_article_id(slug),
+         {:ok, _favorite} <-
+           %Favorite{user_id: user_id, article_id: article_id}
+           |> Favorite.changeset()
+           |> Repo.insert(on_conflict: :nothing)
+           |> gone(),
+         do: reload_article(article_id, user_id)
   end
 
   @doc "Removes a favorite."
@@ -242,7 +246,7 @@ defmodule Conduit.Blog do
   def unfavorite_article(slug, user_id) do
     with {:ok, article_id} <- fetch_article_id(slug) do
       Repo.delete_all(from f in Favorite, where: f.user_id == ^user_id and f.article_id == ^article_id)
-      {:ok, get_article!(article_id, user_id)}
+      reload_article(article_id, user_id)
     end
   end
 
@@ -286,10 +290,10 @@ defmodule Conduit.Blog do
   def create_comment(slug, author_id, attrs) do
     changeset = Comment.changeset(%Comment{author_id: author_id}, attrs)
 
-    # A bad body is reported before an unknown article, as for the other writes.
+    # A bad body is a 422 even on an unknown article: SPEC.md checks the body before it runs any statement.
     with :ok <- validate(changeset),
          {:ok, article_id} <- fetch_article_id(slug),
-         {:ok, comment} <- changeset |> put_change(:article_id, article_id) |> Repo.insert() do
+         {:ok, comment} <- changeset |> put_change(:article_id, article_id) |> Repo.insert() |> gone() do
       # Nobody follows themselves, so the author's `following` keeps its default, false.
       {:ok, Repo.preload(comment, :author)}
     end
@@ -301,10 +305,9 @@ defmodule Conduit.Blog do
     with {:ok, id} <- parse_id(comment_id),
          {:ok, comment} <-
            fetch(Repo.one(from c in Comment, join: a in assoc(c, :article), where: c.id == ^id and a.slug == ^slug)),
-         :ok <- authorize(comment, user_id) do
-      Repo.delete!(comment)
-      :ok
-    end
+         :ok <- authorize(comment, user_id),
+         {:ok, _comment} <- comment |> Repo.delete(stale_error_field: :id) |> gone(),
+         do: :ok
   end
 
   ## Tags
@@ -319,13 +322,24 @@ defmodule Conduit.Blog do
     fetch(Repo.one(from a in Article, where: a.slug == ^slug, select: a.id))
   end
 
-  # Only a plain decimal that fits in a bigint can be a comment id.
+  # Only plain digits that fit in a bigint can be a comment id, as for `limit` and `offset`.
   defp parse_id(id) do
-    case Integer.parse(id) do
-      {n, ""} when n in 1..9_223_372_036_854_775_807 -> {:ok, n}
+    case PlainInteger.cast(id) do
+      {:ok, n} when n > 0 -> {:ok, n}
       _ -> {:error, :not_found}
     end
   end
+
+  # A row a write read first can be deleted by another request before the write lands: the article under a new
+  # favorite or comment, or the article or comment being edited or deleted. The write then breaks a foreign key or
+  # finds its row stale, and gets the 404 it would have got a moment later. Validation errors stay a changeset.
+  defp gone({:error, %Ecto.Changeset{errors: errors}} = error) do
+    if Enum.any?(errors, fn {_field, {_message, info}} -> info[:stale] || info[:constraint] == :foreign end),
+      do: {:error, :not_found},
+      else: error
+  end
+
+  defp gone(result), do: result
 
   defp validate(%Ecto.Changeset{valid?: true}), do: :ok
   defp validate(changeset), do: {:error, changeset}

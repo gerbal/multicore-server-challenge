@@ -5,6 +5,12 @@ defmodule Conduit.Fixtures do
 
   def unique_username, do: "user#{System.unique_integer([:positive])}"
 
+  @doc """
+  A tag name no other test uses. Tests run concurrently, each in its own transaction, and a tag another test has
+  inserted but not yet rolled back makes an upsert of the same name wait for that whole test.
+  """
+  def unique_tag(name), do: "#{name}-#{System.unique_integer([:positive])}"
+
   def user_fixture(attrs \\ %{}) do
     username = unique_username()
 
