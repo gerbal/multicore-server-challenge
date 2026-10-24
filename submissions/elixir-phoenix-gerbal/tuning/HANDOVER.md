@@ -42,6 +42,9 @@ front, so this submission does too.
 | `b8914ee` | Elixir's built-in `JSON` instead of Jason (batch 17) |
 | `0feb89f` | An article's comments in one statement (batch 18) |
 | `a7fe6ad` | Ecto pool of 3 connections per core (batches 19-21) |
+| `f8039c5` | Handover: batches 13-21, leaderboard calibration |
+| `fc264c6` | A list's capped count read with its page of ids (batch 22) |
+| `60e6e88` | Normal schedulers on 5/8 of the cores, `+S 5:5` (batch 23) |
 
 ### What the shipped config sets, and why
 
@@ -56,6 +59,8 @@ front, so this submission does too.
 | Connection heap `min_heap_size: 4181` | `runtime.exs` | Strong: batches 11-12. ~35 KB more per connection |
 | Postgrex `decode_binary: :reference` | `Conduit.PostgrexTypes` | Strong: batches 11-12 |
 | Pool 3 per core, capped at 90 (24 on the box) | `start.sh` | Strong at real pacing: batches 19-21 |
+| Normal schedulers on 5/8 of the cores | `start.sh` | Moderate: lower app CPU per request in batches 19, 21 and 23 |
+| A list's count in its ids statement | `Conduit.Blog` | Strong: batch 22 |
 | Filters walk join-table indexes; pages loaded by id list | `Conduit.Blog` | Strong: batches 15-16 |
 | Comments in one statement (lateral join) | `Conduit.Blog` | Strong: batch 18 |
 | Elixir's built-in `JSON` | `config.exs` | Strong: batch 17 |
@@ -308,9 +313,37 @@ Rust 22k, Java 21k) and at ~83% of `elixir-raw-foovoo`. Per request on the rig: 
 Postgres 0.33-0.34 vs its 0.33. Postgres is at parity; the remaining gap is the framework's CPU per request.
 (One reference and one hold each: ±10%. `elixir-raw-foovoo` was built with OTP 29, not its pinned 28.)
 
+### The last round (batches 22-26) and the held score
+
+| Batch | Change | Load (real pacing) | Result |
+|---|---|---|---|
+| 22 | list count in the ids statement | 36,000 | 9,034 → 9,292 req/s, p95 481 → 236 ms: **shipped** |
+| 23 | logging off / `+S 5:5` / heap 2,584 | 37,000 | `+S 5:5`: app CPU 0.476 → 0.458 ms, p95 360 → 290 ms: **shipped**; the others within noise or worse |
+| 24 | `inet_backend: :socket` on the listener | 38,000 | app CPU +3.7%, p95 486 → 583 ms: no |
+| 25 | GC every 1 / 2 / 5 requests (with the 4,181-word heap) | 38,000 | every request stays best (p95 477 vs 556 / 536 ms) |
+| 26 | `+SDcpu 2:2` / busy-wait off (with `+S 5:5`) | 38,000 | 9,373 / 9,440 / 9,436 req/s: noise |
+
+**Held score of `60e6e88` on this rig: 37,000** (probe at 39,000 failed on p95; 300 s hold at 37,000 passed,
+p95 457 ms, p99 633 ms, 0% errors, 9,221 req/s). With the calibration above (box ≈ 0.78 × rig), **≈ 29,000 on
+the box**, against `elixir-raw-foovoo`'s 32,000. Per request on the rig now: app ~0.46 ms, Postgres ~0.33 ms.
+
+The latest profile, grouped by layer (`profile.sh` at 2,500 users): Ecto 18% (the planner's cache-key walk on every
+`Repo` call ~10%, loading rows the rest), generic `Enum`/`maps`/`lists` work 27% (mostly on Ecto's behalf), JSON
+10%, socket writes 7%, Postgrex/DBConnection 5%, Bandit + Plug + Phoenix 7%, bcrypt 4%, JWT 2%, timestamps 3%.
+What's left is the framework's per-call work; the dials are exhausted.
+
 ## Open questions, in the order I'd tackle them
 
-After session 2 (questions 1-7 below are done or settled; see above):
+After session 2:
+
+- Fewer `Repo` calls is still the lever (each costs a planner pass, a pool checkout and a socket write each way).
+  Favorite/unfavorite run three, follow/unfollow two; both are rare writes. The article page and the comments
+  page are one each, lists two.
+- Timestamps formatted by Postgres (`to_char` in the select) would skip `DateTime` decoding and `to_iso8601` (3%),
+  at some Postgres CPU and readability cost.
+
+Done or settled in session 2: questions 1-8 of session 1 below, the heap size, the GC interval, logging, busy-wait,
+scheduler counts, dirty schedulers, the socket backend, generic plans.
 
 - **App CPU per request is the gap** (0.5 vs 0.24 ms). Profile again with the current build; the per-`Repo`-call
   overhead (planner, checkout, a socket write each) argues for fewer statements: lists still run three (ids,
@@ -372,8 +405,11 @@ Traps on this host:
 - **`podman exec` without `-i` drops stdin**, so `python3 - <<EOF` silently runs nothing.
 - **PID 1 is `sleep infinity`, which doesn't reap**: every stopped server stays a `beam.smp` zombie. Harmless for
   `bench.sh` (a zombie's tick counters are frozen, so they cancel out), but recreate with `--init` next time.
-- Twice, `test/run.sh` hit `eaddrinuse` on port 3000 (the server didn't start, so the run failed); nothing was
-  listening afterwards and the next runs passed. Unexplained; re-run before concluding anything.
+- **`test/run.sh` sometimes fails with `eaddrinuse` on port 3000** in the container (four times, always the first
+  run after load; reruns pass). The container's `ip_local_port_range` is 1024-65535 (the box's sysctl), so port
+  3000 can be some live outgoing socket's ephemeral port; TIME_WAIT alone doesn't block the bind (tested). Run
+  local conformance with `PORT=999` (outside the range; root in the container). The box serves port 80 and CI
+  uses stock ranges, so neither is affected.
 - `pkill -f` patterns in a `podman exec` command line match the wrapper's own text (database names and paths
   count): kill by PID instead.
 

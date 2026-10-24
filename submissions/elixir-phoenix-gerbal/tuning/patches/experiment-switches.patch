@@ -1,6 +1,6 @@
 diff -ruN a/config/runtime.exs b/config/runtime.exs
---- a/config/runtime.exs	2026-10-24 00:56:35.557451801 -0400
-+++ b/config/runtime.exs	2026-10-24 00:56:35.573466851 -0400
+--- a/config/runtime.exs	2026-10-24 05:08:15.203662932 -0400
++++ b/config/runtime.exs	2026-10-24 05:08:15.219470964 -0400
 @@ -8,10 +8,21 @@
      pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
      # At saturation, let a query wait up to 200 ms for a connection (DBConnection's default is 50 ms) before the
@@ -25,7 +25,7 @@ diff -ruN a/config/runtime.exs b/config/runtime.exs
  
    config :joken, default_signer: fetch_env!.("JWT_SECRET")
  
-@@ -24,10 +35,13 @@
+@@ -24,19 +35,22 @@
        port: String.to_integer(System.get_env("PORT", "3000")),
        # Responses go out uncompressed: gzip is optional in SPEC.md and costs CPU on every response, which the box,
        # shared with Postgres, is shorter of than bandwidth.
@@ -41,7 +41,9 @@ diff -ruN a/config/runtime.exs b/config/runtime.exs
        thousand_island_options: [
          # Clients hold one keep-alive connection each and think for up to 70 s between pages; don't close them first.
          read_timeout: 75_000,
-@@ -36,7 +50,7 @@
+         # Every user connects directly, so allow bursts of new connections (the box's somaxconn is 65535).
+-        transport_options: [backlog: 8192],
++        transport_options: [backlog: 8192] ++ if(System.get_env("XTI_SOCKET") == "true", do: [inet_backend: :socket], else: []),
          # Start each connection process with a 4,181-word (33 KB) heap. The GC after every request shrinks the heap
          # back to this minimum, and a request needs about this much, so it no longer re-grows the heap through a
          # series of minor collections on every request. Costs ~35 KB per connection (~1 GB at 27,000 users).
@@ -52,7 +54,7 @@ diff -ruN a/config/runtime.exs b/config/runtime.exs
  end
 diff -ruN a/lib/conduit/accounts/token.ex b/lib/conduit/accounts/token.ex
 --- a/lib/conduit/accounts/token.ex	2026-10-24 00:56:35.559970782 -0400
-+++ b/lib/conduit/accounts/token.ex	2026-10-24 00:56:35.563865281 -0400
++++ b/lib/conduit/accounts/token.ex	2026-10-24 05:08:15.208559785 -0400
 @@ -30,7 +30,13 @@
    """
    @spec fetch_user_id(String.t()) :: {:ok, pos_integer()} | :error
@@ -70,7 +72,7 @@ diff -ruN a/lib/conduit/accounts/token.ex b/lib/conduit/accounts/token.ex
      else
 diff -ruN a/lib/conduit/application.ex b/lib/conduit/application.ex
 --- a/lib/conduit/application.ex	2026-10-24 00:56:35.558787319 -0400
-+++ b/lib/conduit/application.ex	2026-10-24 00:56:35.563944783 -0400
++++ b/lib/conduit/application.ex	2026-10-24 05:08:15.208639127 -0400
 @@ -3,6 +3,10 @@
  
    @impl true
