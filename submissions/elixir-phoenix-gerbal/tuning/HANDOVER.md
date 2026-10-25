@@ -357,6 +357,7 @@ Postgres 0.33-0.34 vs its 0.33. Postgres is at parity; the remaining gap is the 
 | 35 | Hold-shaped, on 60b5cd3: pool 24 / 28 / 32 | 41,000 | late p95 488 / 465 / 374 ms; app 0.420 / 0.419 / 0.414 ms, pg 0.290 / 0.298 / 0.296 |
 | 36 | Hold-shaped: pool 24 / 32 / 40 | 41,000 | late p95 516 / 489 / 457 ms; app 0.425 / 0.416 / 0.411, pg 0.292 / 0.300 / 0.307 (total flat). **32 shipped** (4 per core) |
 | 37 | Hold-shaped, 4 runs each: `plan_cache_mode = force_generic_plan` vs base (32fe47d) | 41,000 | late req/s 10,172 → 10,546, p95 369 → 185 ms, p99 546 → 272, pg 0.297 → 0.280 ms, app 0.414 → 0.406; all 4 generic runs better than all 4 base runs: **shipped** |
+| 38 | Hold-shaped: GC after every 1 / 2 / 3 keep-alive requests (switches build of 6e75daa) | 43,000 | late p95 575 / 477 / 472 ms (gc1's runs 690 and 461), app CPU 0.413 / 0.412 / 0.412 ms: noise; every request stays (idle memory). First attempt lost to the zombie PID limit |
 
 **Held score of `60e6e88` on this rig: 37,000** (probe at 39,000 failed on p95; 300 s hold at 37,000 passed,
 p95 457 ms, p99 633 ms, 0% errors, 9,221 req/s). With the calibration above (box ≈ 0.78 × rig), **≈ 29,000 on
@@ -498,14 +499,19 @@ statements the app sends has a sequential scan of a big table in its generic pla
 
 ### What's left (session 2's view)
 
-Inside idiomatic Phoenix + Ecto the remaining items are each ~1% or less: Joken's token config built once at boot
-(~1%), dropping `Plug.RequestId`/`Plug.Telemetry` (~0.7% each, generator defaults), cheaper timestamp decoding
+Inside idiomatic Phoenix + Ecto the remaining items are each ~1% or less: Joken's token config and signer built
+once at boot (measured: 0.7-1 µs of a 10 µs verify, ~0.2% of app CPU; JOSE already decodes with OTP's `json`), dropping `Plug.RequestId`/`Plug.Telemetry` (~0.7% each, generator defaults), cheaper timestamp decoding
 (custom Postgrex extension or Postgres-side formatting). Measured and rejected this session: `+IOt 2`, `+spp true`,
 `+sub true`, `pool_count: 2`, `+S 6:6`/`7:7`, bigger connection heaps, larger carriers, a super carrier, `EXISTS` or
 lateral forms of the viewer flags, flattening the ids queries further. The big remaining cost is the framework's
 per-query work: from the profiles, Ecto's planner and cache lookup are ~12% of the app's CPU and loading rows ~3%;
 raw SQL through `Ecto.Adapters.SQL.query` + `Repo.load` would recover most of that, at the price of the idiom this
 submission exists to show.
+
+One lever with measurable size is left, and it's a rules call for the owner, not shipped: the favorite counts'
+heap fetches (see "Per statement over a hold") come from autovacuum's pace, so the app running `VACUUM favorites`
+itself every ~30 s would keep them index-only. `VACUUM` creates and alters nothing and isn't a server setting, but
+it overrides what the box's fixed autovacuum configuration would do (rules 2 and 8).
 
 ## Open questions, in the order I'd tackle them
 
@@ -579,7 +585,11 @@ Traps on this host:
   container's `/etc/resolv.conf`. An `apt-get` from the hung attempt kept the apt lock until killed.
 - **`podman exec` without `-i` drops stdin**, so `python3 - <<EOF` silently runs nothing.
 - **PID 1 is `sleep infinity`, which doesn't reap**: every stopped server stays a `beam.smp` zombie. Harmless for
-  `bench.sh` (a zombie's tick counters are frozen, so they cancel out), but recreate with `--init` next time.
+  `bench.sh` (a zombie's tick counters are frozen, so they cancel out), but recreate with `--init` next time. They
+  do pile up against the container's PID limit (podman's default 2,048): after ~100 runs, 1,913 zombies made the
+  loadgen die with `pthread_create failed: Resource temporarily unavailable` and an empty result line (batch 38's
+  first attempt). `podman update --pids-limit 65536 mcsc-bench` raises it in place; scripts that `pgrep -x beam.smp`
+  must match the release's command line instead (zombies have none).
 - **`test/run.sh` sometimes fails with `eaddrinuse` on port 3000** in the container (four times, always the first
   run after load; reruns pass). The container's `ip_local_port_range` is 1024-65535 (the box's sysctl), so port
   3000 can be some live outgoing socket's ephemeral port; TIME_WAIT alone doesn't block the bind (tested). Run
