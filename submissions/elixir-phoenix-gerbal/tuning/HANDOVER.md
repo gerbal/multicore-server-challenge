@@ -21,10 +21,10 @@ front, so this submission does too.
   pushed. GitHub CI hadn't reported on the PR by the end of this session; check it first.
 - Conformance: 197/197 on the dev seed (local Postgres 16; CI uses 18). `mix test`: 86 tests. `install.sh` and
   `build.sh` validated on a clean Ubuntu 24.04 container.
-- **Held score on the session-2 rig: 41,000 users** (`32fe47d`; ≈ 32,000 on the box with box ≈ 0.78 × rig, level
-  with `elixir-raw-foovoo`'s 32,000 there). Started session 2 at 37,000. Per request at 41,000: app ~0.41 ms,
-  Postgres ~0.30 ms. Holds at 43,000 fail on the drift described under "Why holds drift": capacity falls ~6% over a
-  hold as the most-read articles gain comments and favorites and logins per second climb.
+- **Held score on the session-2 rig: 41,000 users** (`6e75daa`; ≈ 32,000 on the box with box ≈ 0.78 × rig, level
+  with `elixir-raw-foovoo`'s 32,000 there), with the 43,000 hold failing by 6 ms (p95 505.6 ms). Started session 2
+  at 37,000. Per request at 41,000: app ~0.41 ms, Postgres ~0.28 ms. Holds degrade on the drift described under
+  "Why holds drift": the most-read articles gain comments and favorites and logins per second climb.
 - Commits on the branch, oldest first:
 
 | Commit | What |
@@ -63,6 +63,8 @@ front, so this submission does too.
 | `70ca35c` | Comments select only the columns the API sends (batch 33); `late.py` |
 | `60b5cd3` | The tag list as one aggregated row; timestamps formatted digit by digit (batch 34) |
 | `32fe47d` | Ecto pool of 4 connections per core (batches 35-36); held score 41,000 |
+| `6e75daa` | `plan_cache_mode = force_generic_plan` on every connection (batch 37) |
+| `89676c4` | `experiment-switches.patch` ported again |
 
 ### What the shipped config sets, and why
 
@@ -462,6 +464,11 @@ above what holds for 5 minutes. To hold 41,000 the server needs ~5% more capacit
 **Search of `32fe47d`** (`search.sh` from 41,000): probes 41,000 and 43,000 pass (p95 201 / 452 ms), 45,000 fails
 (5% errors); the hold at 43,000 fails (p95 687 ms), **the hold at 41,000 passes**: 10,435 req/s, p95 379 ms, p99 502
 ms, 0% errors.
+
+**Search of `6e75daa`** (`search.sh` from 43,000): probes 43,000 and 45,000 pass (p95 150 / 494 ms), 47,000 fails
+(736 ms); the hold at 45,000 fails (32% errors from minute 3), the hold at 43,000 fails by 6 ms (p95 505.6, p99 658,
+0% errors), the hold at 41,000 passes with room: 10,692 req/s, p95 175 ms, p99 252 ms. Score still 41,000; 43,000
+is a coin toss.
 
 ### Per statement over a hold (`pg_stat_statements`, rig only)
 

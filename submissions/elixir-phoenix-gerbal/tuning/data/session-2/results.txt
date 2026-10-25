@@ -328,3 +328,9 @@ b37-generic-3          users=41000  req/s=10755.7  p50=31.1    p95=116.1   p99=1
 b37-base-3             users=41000  req/s=10374.2  p50=158.5   p95=396.5   p99=526.8   err%=0.00   app_ms/req=0.417 pg_ms/req=0.299 app_cores=4.33 pg_cores=3.10
 b37-base-4             users=41000  req/s=10303.9  p50=179.3   p95=445.7   p99=587.3   err%=0.00   app_ms/req=0.420 pg_ms/req=0.301 app_cores=4.32 pg_cores=3.10
 b37-generic-4          users=41000  req/s=10633.4  p50=57.7    p95=225.8   p99=399.6   err%=0.00   app_ms/req=0.407 pg_ms/req=0.282 app_cores=4.33 pg_cores=3.00
+s6-probe-43000         users=43000  req/s=11170.2  p50=50.1    p95=149.5   p99=200.1   err%=0.00   app_ms/req=0.399 pg_ms/req=0.268 app_cores=4.46 pg_cores=2.99
+s6-probe-47000         users=47000  req/s=11175.3  p50=330.8   p95=735.7   p99=977.4   err%=0.00   app_ms/req=0.403 pg_ms/req=0.264 app_cores=4.51 pg_cores=2.95
+s6-probe-45000         users=45000  req/s=11176.2  p50=217.2   p95=494.3   p99=640.5   err%=0.00   app_ms/req=0.402 pg_ms/req=0.265 app_cores=4.50 pg_cores=2.96
+s6-hold-45000          users=45000  req/s=10558.9  p50=467.5   p95=843.8   p99=1246.2  err%=31.87  app_ms/req=0.434 pg_ms/req=0.187 app_cores=4.59 pg_cores=1.98
+s6-hold-43000          users=43000  req/s=10688.9  p50=214.8   p95=505.6   p99=658.4   err%=0.00   app_ms/req=0.409 pg_ms/req=0.280 app_cores=4.37 pg_cores=2.99
+s6-hold-41000          users=41000  req/s=10692.2  p50=51.7    p95=174.7   p99=251.9   err%=0.00   app_ms/req=0.409 pg_ms/req=0.279 app_cores=4.38 pg_cores=2.98
