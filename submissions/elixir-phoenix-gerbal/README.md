@@ -161,6 +161,15 @@ Serving directly means one keep-alive connection per user, tens of thousands of 
   rather than the default address-order first fit, which also turns off carrier migration between schedulers. A
   perf profile at load put a tenth of the CPU in the memory allocators. At real pacing, interleaved, gf took app CPU
   per request down ~3% at both 37,000 and 39,000 users, and peak memory at 37,000 users 2,474 → 2,237 MB.
+- Every connection runs with `plan_cache_mode = force_generic_plan` (Postgrex `parameters:`, a session-level
+  setting): each prepared statement keeps one generic plan. Postgres's default already does that after five runs for
+  every statement but the global and tag lists' ids queries, whose `LIMIT` parameter makes the generic plan's cost
+  estimate look worse than a custom plan's, so they were planned on every call (`pg_stat_statements` on the rig:
+  0.09 and 0.15 ms per call, ~7% of Postgres's statement time). Their generic plans are the same backward index-only
+  scans, and no statement's generic plan scans a big table (checked with `EXPLAIN (GENERIC_PLAN)` on all 31). In
+  5-minute holds at 41,000 users (4 runs each, compared on the last minute): p95 369 → 185 ms, 10,172 → 10,546 req/s,
+  Postgres CPU per request −5.7%. (Forcing generic plans before the list was split into ids and articles was a
+  disaster: the old single list statement's generic plan scanned every article.)
 - Logger level `:warning` in prod.
 
 ## Behavior that differs from the reference

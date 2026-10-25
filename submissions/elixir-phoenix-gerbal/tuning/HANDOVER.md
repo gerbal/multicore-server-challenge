@@ -73,6 +73,7 @@ front, so this submission does too.
 | Listen backlog 8,192 | `runtime.exs` | Cheap headroom for direct connection bursts; the box's `somaxconn` is 65,535. Not load-tested |
 | GC after every keep-alive request | `runtime.exs` | Memory: 80 → 14 KB per idle connection (15,000 idle connections). CPU cost: see batch 4 below |
 | `read_timeout` 75 s | `runtime.exs` | Longer than the workload's 70 s maximum think time, so the server never closes a thinking user |
+| `plan_cache_mode = force_generic_plan` (Postgrex `parameters:`) | `runtime.exs` | Strong: batch 37 (pg CPU -5.7%, late p95 halved); safe since the list split (batch 16), unlike batch 14 |
 | Ecto `queue_target` 200 ms | `runtime.exs` | Strong at real pacing: batch 8 (session 2). The default sheds queries as 500s at saturation |
 | Connection heap `min_heap_size: 4181` | `runtime.exs` | Strong: batches 11-12. ~35 KB more per connection |
 | Postgrex `decode_binary: :reference` | `Conduit.PostgrexTypes` | Strong: batches 11-12 |
@@ -353,6 +354,7 @@ Postgres 0.33-0.34 vs its 0.33. Postgres is at parity; the remaining gap is the 
 | 34 | Hold-shaped: tags as one `array_agg` row + timestamps formatted digit by digit (`fast`); on fast, pool 20 / 28, `+sbt db` | 41,000 | late req/s / p95 / app ms: base 9,982 / 497 / 0.430; fast 10,146 / 390 / 0.418; pool20 9,939 / 520 / 0.427; pool28 10,214 / 364 / 0.413; sbt 9,864 / 583 / 0.424. fast **shipped**; sbt no; pool trend 20 < 24 < 28 |
 | 35 | Hold-shaped, on 60b5cd3: pool 24 / 28 / 32 | 41,000 | late p95 488 / 465 / 374 ms; app 0.420 / 0.419 / 0.414 ms, pg 0.290 / 0.298 / 0.296 |
 | 36 | Hold-shaped: pool 24 / 32 / 40 | 41,000 | late p95 516 / 489 / 457 ms; app 0.425 / 0.416 / 0.411, pg 0.292 / 0.300 / 0.307 (total flat). **32 shipped** (4 per core) |
+| 37 | Hold-shaped, 4 runs each: `plan_cache_mode = force_generic_plan` vs base (32fe47d) | 41,000 | late req/s 10,172 → 10,546, p95 369 → 185 ms, p99 546 → 272, pg 0.297 → 0.280 ms, app 0.414 → 0.406; all 4 generic runs better than all 4 base runs: **shipped** |
 
 **Held score of `60e6e88` on this rig: 37,000** (probe at 39,000 failed on p95; 300 s hold at 37,000 passed,
 p95 457 ms, p99 633 ms, 0% errors, 9,221 req/s). With the calibration above (box ≈ 0.78 × rig), **≈ 29,000 on
@@ -460,6 +462,32 @@ above what holds for 5 minutes. To hold 41,000 the server needs ~5% more capacit
 **Search of `32fe47d`** (`search.sh` from 41,000): probes 41,000 and 43,000 pass (p95 201 / 452 ms), 45,000 fails
 (5% errors); the hold at 43,000 fails (p95 687 ms), **the hold at 41,000 passes**: 10,435 req/s, p95 379 ms, p99 502
 ms, 0% errors.
+
+### Per statement over a hold (`pg_stat_statements`, rig only)
+
+Loaded on the rig's Postgres only for one diagnostic hold at 41,000 users (`shared_preload_libraries`,
+`track_planning`; created in the `postgres` database so the seed stayed untouched; removed afterwards, and that run
+isn't in any comparison). Reset as the window opened, snapshotted at +60, +240 and +300 s (`data/session-2/pgss/`).
+First minute → last minute:
+
+| Statement | calls/s | exec ms/call | plan ms/call | blocks/call | share of statement time |
+|---|---:|---:|---:|---:|---:|
+| list pages' article statement | 3,167 → 3,073 | 0.284 → 0.353 | 0 (generic) | 184 → 283 | 39 → 43% |
+| feed ids | 855 → 832 | 0.396 → 0.421 | 0 | 151 → 173 | 15 → 14% |
+| comment list | 2,163 → 2,061 | 0.109 → 0.143 | 0 | 39 → 60 (rows 7.8 → 12.7) | 10 → 12% |
+| global list ids | 1,269 → 1,240 | 0.139 → 0.137 | **0.086** | 33 → 31 | 12 → 11% |
+| single article | 2,164 → 2,067 | 0.079 → 0.081 | 0 | 31 → 44 | 7 → 7% |
+| tag list ids | 459 → 447 | 0.163 → 0.164 | **0.151** | 28 → 31 | 6 → 6% |
+| tags | 2,124 → 2,073 | 0.045 | 0 | 2 | 4% |
+
+Two findings. The article statement reads 54% more blocks per call for the same rows: its per-article favorite
+`count(*)` is an index-only scan that has to visit the heap for every favorite inserted since autovacuum last marked
+the page all-visible (the most-read articles: 2,859 heap fetches for 11 articles' 242 favorites each after a hold).
+That's autovacuum's pace, fixed by the box's server config. And the two ids queries are planned on every call
+(custom plans), ~7% of the statement time, while their generic plans (`EXPLAIN (GENERIC_PLAN)`) are the same backward
+index-only scans; every other statement already settles on its generic plan after five runs, and none of the 31
+statements the app sends has a sequential scan of a big table in its generic plan. So batch 37 tries
+`plan_cache_mode = force_generic_plan` (Postgrex `parameters:`, a session-level setting the rules allow).
 
 ### What's left (session 2's view)
 

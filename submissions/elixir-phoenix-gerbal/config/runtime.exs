@@ -16,7 +16,13 @@ if config_env() == :prod do
     pool_size: String.to_integer(System.get_env("DB_POOL_SIZE") || "#{min(4 * cores, 90)}"),
     # At saturation, let a query wait up to 200 ms for a connection (DBConnection's default is 50 ms) before the
     # pool starts shedding: latency has headroom under the 500 ms p95 limit, while every shed query is a 500.
-    queue_target: 200
+    queue_target: 200,
+    # Each connection reuses one generic plan per prepared statement. Postgres's default picks it after five runs
+    # for every statement but the global and tag lists' ids queries, whose LIMIT parameter makes the generic plan's
+    # cost estimate look worse than a custom plan for LIMIT 10, so it re-planned them on every call (0.09 and 0.15 ms,
+    # ~7% of Postgres's statement time); their generic plans are the same backward index scans. Session-level, so
+    # within the box's fixed server config.
+    parameters: [plan_cache_mode: "force_generic_plan"]
 
   config :conduit, ConduitWeb.Endpoint,
     server: true,
