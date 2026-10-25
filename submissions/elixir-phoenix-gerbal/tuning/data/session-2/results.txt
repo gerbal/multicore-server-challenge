@@ -315,3 +315,8 @@ b36-pool24-1           users=41000  req/s=10178.6  p50=233.1   p95=584.7   p99=7
 b36-pool24-2           users=41000  req/s=10237.6  p50=213.5   p95=486.1   p99=671.2   err%=0.00   app_ms/req=0.422 pg_ms/req=0.290 app_cores=4.32 pg_cores=2.97
 b36-pool32-2           users=41000  req/s=10253.6  p50=200.7   p95=517.9   p99=673.8   err%=0.00   app_ms/req=0.420 pg_ms/req=0.306 app_cores=4.31 pg_cores=3.13
 b36-pool40-2           users=41000  req/s=10268.9  p50=192.1   p95=484.1   p99=641.0   err%=0.00   app_ms/req=0.416 pg_ms/req=0.307 app_cores=4.27 pg_cores=3.16
+s5-probe-41000         users=41000  req/s=10617.3  p50=70.2    p95=200.7   p99=280.1   err%=0.00   app_ms/req=0.407 pg_ms/req=0.287 app_cores=4.32 pg_cores=3.05
+s5-probe-45000         users=45000  req/s=10641.3  p50=364.8   p95=774.1   p99=1080.3  err%=5.47   app_ms/req=0.417 pg_ms/req=0.273 app_cores=4.44 pg_cores=2.91
+s5-probe-43000         users=43000  req/s=10691.2  p50=197.0   p95=451.6   p99=583.7   err%=0.00   app_ms/req=0.402 pg_ms/req=0.289 app_cores=4.30 pg_cores=3.08
+s5-hold-43000          users=43000  req/s=10406.9  p50=301.1   p95=687.1   p99=903.2   err%=0.24   app_ms/req=0.413 pg_ms/req=0.296 app_cores=4.30 pg_cores=3.08
+s5-hold-41000          users=41000  req/s=10434.6  p50=134.8   p95=378.9   p99=502.0   err%=0.00   app_ms/req=0.412 pg_ms/req=0.295 app_cores=4.29 pg_cores=3.08

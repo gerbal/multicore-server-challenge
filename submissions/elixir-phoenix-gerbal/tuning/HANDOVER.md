@@ -21,10 +21,10 @@ front, so this submission does too.
   pushed. GitHub CI hadn't reported on the PR by the end of this session; check it first.
 - Conformance: 197/197 on the dev seed (local Postgres 16; CI uses 18). `mix test`: 86 tests. `install.sh` and
   `build.sh` validated on a clean Ubuntu 24.04 container.
-- **Held score on the session-2 rig: 39,000 users** (`70ca35c`; ≈ 30,400 on the box with box ≈ 0.78 × rig, against
-  `elixir-raw-foovoo`'s 32,000 there). Started session 2 at 37,000. Per request at 39,000: app ~0.43 ms, Postgres
-  ~0.28 ms. Holds at 41,000 fail on the drift described under "Why holds drift": capacity falls ~6% over a hold as
-  the most-read articles gain comments and favorites and logins per second climb.
+- **Held score on the session-2 rig: 41,000 users** (`32fe47d`; ≈ 32,000 on the box with box ≈ 0.78 × rig, level
+  with `elixir-raw-foovoo`'s 32,000 there). Started session 2 at 37,000. Per request at 41,000: app ~0.41 ms,
+  Postgres ~0.30 ms. Holds at 43,000 fail on the drift described under "Why holds drift": capacity falls ~6% over a
+  hold as the most-read articles gain comments and favorites and logins per second climb.
 - Commits on the branch, oldest first:
 
 | Commit | What |
@@ -61,6 +61,8 @@ front, so this submission does too.
 | `9df6969` | Tag names by primary key through a lateral join (batch 31): Postgres CPU per request -16% |
 | `cccd1a1` | Why holds drift; `hold-watch.sh` + `hold-watch.py` |
 | `70ca35c` | Comments select only the columns the API sends (batch 33); `late.py` |
+| `60b5cd3` | The tag list as one aggregated row; timestamps formatted digit by digit (batch 34) |
+| `32fe47d` | Ecto pool of 4 connections per core (batches 35-36); held score 41,000 |
 
 ### What the shipped config sets, and why
 
@@ -454,6 +456,10 @@ end; changes aimed at per-row costs need 5-minute runs compared on their last mi
 (14% errors); holds at 43,000 (errors from minute 4, as the pool sheds queries past `queue_target`) and 41,000 (p95
 652 ms) fail, 39,000 passes (10,171 req/s, p95 214 ms, p99 270 ms). Still 39,000: a 60 s probe passes ~4,000 users
 above what holds for 5 minutes. To hold 41,000 the server needs ~5% more capacity late in a hold.
+
+**Search of `32fe47d`** (`search.sh` from 41,000): probes 41,000 and 43,000 pass (p95 201 / 452 ms), 45,000 fails
+(5% errors); the hold at 43,000 fails (p95 687 ms), **the hold at 41,000 passes**: 10,435 req/s, p95 379 ms, p99 502
+ms, 0% errors.
 
 ### What's left (session 2's view)
 
