@@ -604,7 +604,7 @@ To get close to the benchmark box (8 vCPU, 16 GB, Ubuntu 24.04, Postgres 18):
 | `interleave.sh` | Runs a configs file as forward + reversed cycles through `bench.sh` |
 | `summarize.py` | Averages result lines per config, with the per-run spread |
 | `make-variant.sh` | Copies the submission to a scratch dir, applies patches, builds it, so variants never touch the tree |
-| `patches/experiment-switches.patch` | Env switches for experiments: `XPOOL_COUNT`, `XQ_TARGET`, `XQ_INTERVAL`, `XREPO_LOG`, `XPHX_LOG`, `XGC_EVERY`, `XLOG_EXC`, `XMIN_HEAP`, `XPG_REF` (`false` = default types), `XSIGNER=prebuilt`. Never commit it applied |
+| `patches/experiment-switches.patch` | Env switches for experiments: `XPOOL_COUNT`, `XQ_TARGET`, `XQ_INTERVAL`, `XREPO_LOG`, `XPHX_LOG`, `XGC_EVERY`, `XLOG_EXC`, `XMIN_HEAP`, `XPG_REF` (`false` = default types), `XPG_PLAN` (`auto` = Postgres's default plan cache mode), `XSIGNER=prebuilt`. Never commit it applied |
 | `profile.sh` + `prof.exs` | `tprof` call-time profile of the prod build under load |
 | `hold-watch.sh` + `hold-watch.py` | One `bench.sh` run (a hold by default) with BEAM/Postgres CPU, RSS and per-table stats sampled every 5 s, joined with the loadgen's timeline: what changes as a hold degrades |
 | `late.py` | Compares configs by the last N seconds of their measured windows (from the loadgen timeline), where a hold is decided |
